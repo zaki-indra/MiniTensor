@@ -1,3 +1,5 @@
+// include/minitensor.hpp
+
 #pragma once
 
 #include <cstddef>
@@ -33,6 +35,9 @@ class Tensor {
     explicit Tensor(Shape shape, bool requires_grad = false);
     Tensor(std::vector<float> data, Shape shape, bool requires_grad = false);
     Tensor(std::initializer_list<float> values);
+
+    template<typename... Indices>
+    [[nodiscard]] float& operator[](Indices... indices);
 
     static Tensor zeros(const Shape& shape, bool requires_grad = false);
     static Tensor ones(const Shape& shape, bool requires_grad = false);
