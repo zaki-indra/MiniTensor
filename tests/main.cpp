@@ -1,7 +1,7 @@
 // tests/main.cpp
 
 #include <gtest/gtest.h>
-#include <minitensor.hpp>
+#include <minitensor/minitensor.hpp>
 
 TEST(TensorTest, DefaultConstructor) {
     mt::Tensor t;

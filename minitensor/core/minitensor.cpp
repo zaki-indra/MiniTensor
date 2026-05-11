@@ -1,8 +1,9 @@
 // minitensor/core/minitensor.cpp
 
-#include "minitensor.hpp"
-
 #include "tensorimpl.hpp"
+
+#include <minitensor/minitensor.hpp>
+#include <minitensor/types.hpp>
 
 mt::Tensor::Tensor() noexcept = default;
 
@@ -18,7 +19,7 @@ mt::Tensor::Tensor(std::initializer_list<float> values)
     : impl_(std::make_shared<TensorImpl>(std::vector<float>(values), Shape{values.size()}, false)) {
 }
 
-template <typename... Indices> float& mt::Tensor::operator[](Indices... indices) {
+template <mt::Index... Indices> float& mt::Tensor::operator[](Indices... indices) {
     return impl_->data_[indices...];
 }
 

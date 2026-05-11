@@ -1,6 +1,8 @@
-// include/minitensor.hpp
+// include/minitensor/minitensor.hpp
 
 #pragma once
+
+#include "types.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -13,21 +15,7 @@
 namespace mt
 {
 
-enum class DataType {
-    f16,
-    f32,
-    f64,
-    bf16,
-};
-
-enum class DeviceType {
-    cpu,
-    cuda,
-};
-
 struct TensorImpl;
-
-using Shape = std::vector<std::size_t>;
 
 class Tensor {
   public:
@@ -36,8 +24,7 @@ class Tensor {
     Tensor(std::vector<float> data, Shape shape, bool requires_grad = false);
     Tensor(std::initializer_list<float> values);
 
-    template<typename... Indices>
-    [[nodiscard]] float& operator[](Indices... indices);
+    template <Index... Indices> [[nodiscard]] float& operator[](Indices... indices);
 
     static Tensor zeros(const Shape& shape, bool requires_grad = false);
     static Tensor ones(const Shape& shape, bool requires_grad = false);

@@ -1,6 +1,6 @@
 // example/create.cpp
 
-#include <minitensor.hpp>
+#include <minitensor/minitensor.hpp>
 
 int main() {
     mt::Tensor t = mt::zeros({3, 3});

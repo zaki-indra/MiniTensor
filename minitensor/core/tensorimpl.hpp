@@ -2,10 +2,9 @@
 
 #pragma once
 
-#include "minitensor.hpp"
-
 #include <functional>
 #include <memory>
+#include <minitensor/minitensor.hpp>
 #include <vector>
 
 namespace mt
