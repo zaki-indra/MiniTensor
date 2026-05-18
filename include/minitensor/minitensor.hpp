@@ -24,7 +24,27 @@ class Tensor {
     Tensor(std::vector<float> data, Shape shape, bool requires_grad = false);
     Tensor(std::initializer_list<float> values);
 
-    template <Index... Indices> [[nodiscard]] float& operator[](Indices... indices);
+    template <mt::Index... Indices>
+    [[nodiscard]] float& at(Indices... indices) {
+        constexpr std::size_t num_indices = sizeof...(Indices);
+        if constexpr (num_indices == 0) {
+            return _at_impl(nullptr, 0);
+        } else {
+            // Unpack the parameter pack into a standard array to pass across the bridge
+            std::size_t idxs[] = {static_cast<std::size_t>(indices)...};
+            return _at_impl(idxs, num_indices);
+        }
+    }
+    template <mt::Index... Indices>
+    [[nodiscard]] const float& at(Indices... indices) const {
+        constexpr std::size_t num_indices = sizeof...(Indices);
+        if constexpr (num_indices == 0) {
+            return _at_impl(nullptr, 0);
+        } else {
+            std::size_t idxs[] = {static_cast<std::size_t>(indices)...};
+            return _at_impl(idxs, num_indices);
+        }
+    }
 
     static Tensor zeros(const Shape& shape, bool requires_grad = false);
     static Tensor ones(const Shape& shape, bool requires_grad = false);
@@ -87,6 +107,9 @@ class Tensor {
 
   private:
     std::shared_ptr<TensorImpl> impl_;
+
+    float&       _at_impl(const std::size_t* indices, std::size_t num_indices);
+    const float& _at_impl(const std::size_t* indices, std::size_t num_indices) const;
 };
 
 // Convenience free functions

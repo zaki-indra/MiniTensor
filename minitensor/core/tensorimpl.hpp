@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <minitensor/minitensor.hpp>
+#include <minitensor/types.hpp>
 #include <vector>
 
 namespace mt
@@ -54,7 +55,6 @@ struct TensorImpl {
     TensorImpl() = default;
 
     TensorImpl(Shape shape, bool requires_grad) : shape_(std::move(shape)), requires_grad_(requires_grad) {
-        // Default to CPU f32 for now
         std::size_t size = 1;
         for (auto s : shape_)
             size *= s;
@@ -77,7 +77,7 @@ struct TensorImpl {
         }
     }
 
-    template <typename... Indices> float& operator[](Indices... indices);
+    [[nodiscard]] float& at(const std::size_t* indices, std::size_t num_indices);
 };
 
 // ---------------------------------------------------------

@@ -22,6 +22,7 @@ BraceWrapping:
   AfterUnion: false
   BeforeCatch: false
   BeforeElse: false
+AlwaysBreakTemplateDeclarations: Yes
 
 # Spaces
 SpaceAfterCStyleCast: false

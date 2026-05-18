@@ -9,7 +9,8 @@ TEST(TensorTest, DefaultConstructor) {
 }
 
 TEST(TensorTest, ZeroInitializer) {
-    mt::Tensor t = mt::zeros({3, 3});
+    size_t     rows = 3, cols = 3;
+    mt::Tensor t = mt::zeros({rows, cols});
 
     EXPECT_TRUE(t.defined());
     EXPECT_EQ(t.numel(), 9);
@@ -17,4 +18,10 @@ TEST(TensorTest, ZeroInitializer) {
     EXPECT_EQ(t.dtype(), mt::DataType::f32);
     EXPECT_EQ(t.device(), mt::DeviceType::cpu);
     EXPECT_FALSE(t.requires_grad());
+
+    for (size_t i = 0; i < rows; i++) {
+        for (size_t j = 0; j < cols; j++) {
+            EXPECT_FLOAT_EQ(t.at<size_t>(i, j), 0.0f);
+        }
+    }
 }

@@ -19,8 +19,8 @@ mt::Tensor::Tensor(std::initializer_list<float> values)
     : impl_(std::make_shared<TensorImpl>(std::vector<float>(values), Shape{values.size()}, false)) {
 }
 
-template <mt::Index... Indices> float& mt::Tensor::operator[](Indices... indices) {
-    return impl_->data_[indices...];
+float& mt::Tensor::_at_impl(const std::size_t* indices, std::size_t num_indices) {
+    return impl_.get()->at(indices, num_indices);
 }
 
 mt::Tensor mt::Tensor::zeros(const Shape& shape, bool requires_grad) {
