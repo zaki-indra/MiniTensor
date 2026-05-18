@@ -1,7 +1,7 @@
 
 #include "tensorimpl.hpp"
 
-#include <minitensor/types.hpp>
+#include <minitensor/minitensor.hpp>
 
 float& mt::TensorImpl::at(const std::size_t* indices, std::size_t num_indices) {
     std::size_t index = 0;

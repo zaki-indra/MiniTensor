@@ -5,7 +5,6 @@
 #include <functional>
 #include <memory>
 #include <minitensor/minitensor.hpp>
-#include <minitensor/types.hpp>
 #include <vector>
 
 namespace mt

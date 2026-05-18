@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef _MINITENSOR_HPP_
+#error "include minitensor/minitensor.h in your application, **not** minitensor/minitensor/Types.h"
+#endif
+
 #include <vector>
 
 namespace mt

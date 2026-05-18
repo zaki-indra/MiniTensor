@@ -3,7 +3,6 @@
 #include "tensorimpl.hpp"
 
 #include <minitensor/minitensor.hpp>
-#include <minitensor/types.hpp>
 
 mt::Tensor::Tensor() noexcept = default;
 
