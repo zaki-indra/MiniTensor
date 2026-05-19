@@ -44,9 +44,11 @@ class Array {
     // ---------------------------------------------------------
     // Data Storage
     // ---------------------------------------------------------
+    //
     // For a minimal library, a flat vector is sufficient for CPU.
-    // To support CUDA later, you would replace this with a custom `Storage`
-    // struct that wraps a void* and a custom device allocator.
+    // To support CUDA later, we need to replace this with a
+    // custom `Storage` struct that wraps a void* and a custom
+    // device allocator.
     std::vector<float> data_;
 
     // ---------------------------------------------------------
@@ -58,27 +60,34 @@ class Array {
     Array(std::initializer_list<float> values);
 
     // ---------------------------------------------------------
+    // Metadata Getter
+    // ---------------------------------------------------------
+    [[nodiscard]] bool         defined() const noexcept;
+    [[nodiscard]] const Shape& shape() const noexcept;
+    [[nodiscard]] const Shape& strides() const noexcept;
+    [[nodiscard]] std::size_t  ndim() const noexcept;
+    [[nodiscard]] std::size_t  numel() const noexcept;
+    [[nodiscard]] DataType     dtype() const noexcept;
+    [[nodiscard]] DeviceType   device() const noexcept;
+
+    // ---------------------------------------------------------
+    // Raw Data Pointer
+    // ---------------------------------------------------------
+    [[nodiscard]] float*       data() noexcept;
+    [[nodiscard]] const float* data() const noexcept;
+
+    // ---------------------------------------------------------
     // Indexing
     // ---------------------------------------------------------
     [[nodiscard]] float&       at(std::initializer_list<std::size_t> indices);
     [[nodiscard]] const float& at(std::initializer_list<std::size_t> indices) const;
 
     // ---------------------------------------------------------
-    // Metadata Getter
+    // Static Initializers
     // ---------------------------------------------------------
-    [[nodiscard]] bool         defined() const noexcept;
-    [[nodiscard]] const Shape& shape() const noexcept;
-    [[nodiscard]] std::size_t  ndim() const noexcept;
-    [[nodiscard]] std::size_t  numel() const noexcept;
-    [[nodiscard]] DataType     dtype() const noexcept;
-    [[nodiscard]] DeviceType   device() const noexcept;
-
     static Array zeros(const Shape& shape);
     static Array ones(const Shape& shape);
     static Array randn(const Shape& shape);
-
-    [[nodiscard]] float*       data() noexcept;
-    [[nodiscard]] const float* data() const noexcept;
 
     [[nodiscard]] Array grad() const;
     void                zero_grad();
@@ -133,6 +142,9 @@ class Array {
     DataType   dtype_  = DataType::f32;
     DeviceType device_ = DeviceType::cpu;
 
+    // ---------------------------------------------------------
+    // Private Helpers
+    // ---------------------------------------------------------
     void compute_strides();
 };
 
