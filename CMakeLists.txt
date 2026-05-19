@@ -8,8 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # --- 1. Main Library Target ---
 add_library(minitensor
-    minitensor/core/Tensor.cpp
-    minitensor/core/TensorImpl.cpp
+    minitensor/core/Array.cpp
 )
 
 # Enforce our clean Pitchfork layout boundaries
@@ -34,7 +33,7 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-add_executable(minitensor_tests tests/main.cpp)
+add_executable(minitensor_tests tests/array.cpp)
 
 # GTest::gtest_main automatically provides the int main() for us!
 target_link_libraries(minitensor_tests

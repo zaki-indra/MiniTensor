@@ -3,14 +3,14 @@
 #include <gtest/gtest.h>
 #include <minitensor/minitensor.hpp>
 
-TEST(TensorTest, DefaultConstructor) {
-    mt::Tensor t;
+TEST(ArrayTest, DefaultConstructor) {
+    mt::Array t;
     EXPECT_FALSE(t.defined());
 }
 
-TEST(TensorTest, ZeroInitializer) {
+TEST(ArrayTest, ZeroInitializer) {
     size_t     rows = 3, cols = 3;
-    mt::Tensor t = mt::zeros({rows, cols});
+    mt::Array t = mt::zeros({rows, cols});
 
     EXPECT_TRUE(t.defined());
     EXPECT_EQ(t.numel(), 9);
