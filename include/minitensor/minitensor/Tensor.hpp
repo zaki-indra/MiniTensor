@@ -23,48 +23,42 @@ struct TensorImpl;
 
 class Tensor {
   public:
+    // ---------------------------------------------------------
+    // Data Storage
+    // ---------------------------------------------------------
+    // For a minimal library, a flat vector is sufficient for CPU.
+    // To support CUDA later, you would replace this with a custom `Storage`
+    // struct that wraps a void* and a custom device allocator.
+    std::vector<float> data_;
+
+    // ---------------------------------------------------------
+    // Constructors
+    // ---------------------------------------------------------
     Tensor() noexcept;
     explicit Tensor(Shape shape, bool requires_grad = false);
     Tensor(std::vector<float> data, Shape shape, bool requires_grad = false);
     Tensor(std::initializer_list<float> values);
 
-    template <mt::Index... Indices>
-    [[nodiscard]] float& at(Indices... indices) {
-        constexpr std::size_t num_indices = sizeof...(Indices);
-        if constexpr (num_indices == 0) {
-            return _at_impl(nullptr, 0);
-        } else {
-            // Unpack the parameter pack into a standard array to pass across the bridge
-            std::size_t idxs[] = {static_cast<std::size_t>(indices)...};
-            return _at_impl(idxs, num_indices);
-        }
-    }
-    template <mt::Index... Indices>
-    [[nodiscard]] const float& at(Indices... indices) const {
-        constexpr std::size_t num_indices = sizeof...(Indices);
-        if constexpr (num_indices == 0) {
-            return _at_impl(nullptr, 0);
-        } else {
-            std::size_t idxs[] = {static_cast<std::size_t>(indices)...};
-            return _at_impl(idxs, num_indices);
-        }
-    }
-
-    template <Index... Indices>
-    [[nodiscard]] float& at1(Indices... indices);
-
-    static Tensor zeros(const Shape& shape, bool requires_grad = false);
-    static Tensor ones(const Shape& shape, bool requires_grad = false);
-    static Tensor randn(const Shape& shape, bool requires_grad = false);
-
+    // ---------------------------------------------------------
+    // Indexing
+    // ---------------------------------------------------------
+    [[nodiscard]] float&       at(std::initializer_list<std::size_t> indices);
+    [[nodiscard]] const float& at(std::initializer_list<std::size_t> indices) const;
+    
+    // ---------------------------------------------------------
+    // Metadata Getter
+    // ---------------------------------------------------------
     [[nodiscard]] bool         defined() const noexcept;
     [[nodiscard]] const Shape& shape() const noexcept;
     [[nodiscard]] std::size_t  ndim() const noexcept;
     [[nodiscard]] std::size_t  numel() const noexcept;
     [[nodiscard]] bool         requires_grad() const noexcept;
+    [[nodiscard]] DataType     dtype() const noexcept;
+    [[nodiscard]] DeviceType   device() const noexcept;
 
-    [[nodiscard]] DataType   dtype() const noexcept;
-    [[nodiscard]] DeviceType device() const noexcept;
+    static Tensor zeros(const Shape& shape, bool requires_grad = false);
+    static Tensor ones(const Shape& shape, bool requires_grad = false);
+    static Tensor randn(const Shape& shape, bool requires_grad = false);
 
     [[nodiscard]] float*       data() noexcept;
     [[nodiscard]] const float* data() const noexcept;
@@ -113,7 +107,19 @@ class Tensor {
     [[nodiscard]] Tensor log_softmax(std::size_t dim) const;
 
   private:
+    // ---------------------------------------------------------
+    // Metadata
+    // ---------------------------------------------------------
+    bool       defined_ = false;
+    size_t     numel_;
+    Shape      shape_;
+    Shape      strides_;
+    DataType   dtype_  = DataType::f32;
+    DeviceType device_ = DeviceType::cpu;
+
     std::shared_ptr<TensorImpl> impl_;
+
+    void compute_strides();
 
     float&       _at_impl(const std::size_t* indices, std::size_t num_indices);
     const float& _at_impl(const std::size_t* indices, std::size_t num_indices) const;
