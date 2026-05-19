@@ -1,5 +1,5 @@
 
-#include "tensorimpl.hpp"
+#include "TensorImpl.hpp"
 
 #include <minitensor/minitensor.hpp>
 

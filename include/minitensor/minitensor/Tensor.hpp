@@ -50,6 +50,9 @@ class Tensor {
         }
     }
 
+    template <Index... Indices>
+    [[nodiscard]] float& at1(Indices... indices);
+
     static Tensor zeros(const Shape& shape, bool requires_grad = false);
     static Tensor ones(const Shape& shape, bool requires_grad = false);
     static Tensor randn(const Shape& shape, bool requires_grad = false);
@@ -132,99 +135,4 @@ class Tensor {
 
 // Printing stream support
 std::ostream& operator<<(std::ostream& os, const Tensor& tensor);
-
-// ---------------------------------------------------------
-// Neural network modules
-// ---------------------------------------------------------
-namespace nn
-{
-
-class Module {
-  public:
-    virtual ~Module() = default;
-
-    [[nodiscard]] virtual Tensor forward(const Tensor& input) const = 0;
-    [[nodiscard]] Tensor         operator()(const Tensor& input) const {
-        return forward(input);
-    }
-
-    [[nodiscard]] virtual std::vector<Tensor> parameters() const = 0;
-
-    virtual void train() noexcept {
-        training_ = true;
-    }
-    virtual void eval() noexcept {
-        training_ = false;
-    }
-    [[nodiscard]] bool training() const noexcept {
-        return training_;
-    }
-
-  protected:
-    bool training_ = true;
-};
-
-class Linear final : public Module {
-  public:
-    Linear(std::size_t in_features, std::size_t out_features, bool bias = true);
-
-    [[nodiscard]] Tensor              forward(const Tensor& input) const override;
-    [[nodiscard]] std::vector<Tensor> parameters() const override;
-
-    [[nodiscard]] const Tensor& weight() const noexcept;
-    [[nodiscard]] const Tensor& bias() const noexcept;
-
-  private:
-    Tensor weight_;
-    Tensor bias_;
-    bool   has_bias_ = true;
-};
-
-class LossFunction {
-  public:
-    virtual ~LossFunction() = default;
-
-    [[nodiscard]] virtual Tensor forward(const Tensor& input, const Tensor& target) const = 0;
-    [[nodiscard]] Tensor         operator()(const Tensor& input, const Tensor& target) const {
-        return forward(input, target);
-    }
-};
-
-class MSELoss final : public LossFunction {
-  public:
-    MSELoss() = default;
-    [[nodiscard]] Tensor forward(const Tensor& input, const Tensor& target) const override;
-};
-
-class CrossEntropyLoss final : public LossFunction {
-  public:
-    CrossEntropyLoss() = default;
-    [[nodiscard]] Tensor forward(const Tensor& logits, const Tensor& target) const override;
-};
-
-} // namespace nn
-
-// ---------------------------------------------------------
-// Optimizers
-// ---------------------------------------------------------
-namespace optim
-{
-
-class SGD {
-  public:
-    SGD(std::vector<Tensor> parameters, float learning_rate);
-
-    void zero_grad();
-    void step();
-
-    [[nodiscard]] float learning_rate() const noexcept;
-    void                set_learning_rate(float lr) noexcept;
-
-  private:
-    std::vector<Tensor> parameters_;
-    float               learning_rate_ = 1e-2f;
-};
-
-} // namespace optim
-
 } // namespace mt
