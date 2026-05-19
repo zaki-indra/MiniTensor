@@ -106,9 +106,15 @@ class Array {
     // ---------------------------------------------------------
     // Static Initializers
     // ---------------------------------------------------------
-    static Array zeros(const Shape& shape);
-    static Array ones(const Shape& shape);
-    static Array randn(const Shape& shape);
+    [[nodiscard]] static Array zeros(const Shape& shape, DataType dtype, DeviceType device);
+    [[nodiscard]] static Array zeros(const Shape& shape, DataType dtype);
+    [[nodiscard]] static Array zeros(const Shape& shape);
+    [[nodiscard]] static Array ones(const Shape& shape, DataType dtype, DeviceType device);
+    [[nodiscard]] static Array ones(const Shape& shape, DataType dtype);
+    [[nodiscard]] static Array ones(const Shape& shape);
+    [[nodiscard]] static Array randn(const Shape& shape, DataType dtype, DeviceType device);
+    [[nodiscard]] static Array randn(const Shape& shape, DataType dtype);
+    [[nodiscard]] static Array randn(const Shape& shape);
 
     [[nodiscard]] Array grad() const;
     void                zero_grad();
@@ -154,9 +160,16 @@ class Array {
 };
 
 // Convenience free functions
+[[nodiscard]] Array zeros(const Shape& shape, DataType dtype, DeviceType device);
+[[nodiscard]] Array zeros(const Shape& shape, DataType dtype);
 [[nodiscard]] Array zeros(const Shape& shape);
+[[nodiscard]] Array ones(const Shape& shape, DataType dtype, DeviceType device);
+[[nodiscard]] Array ones(const Shape& shape, DataType dtype);
 [[nodiscard]] Array ones(const Shape& shape);
+[[nodiscard]] Array randn(const Shape& shape, DataType dtype, DeviceType device);
+[[nodiscard]] Array randn(const Shape& shape, DataType dtype);
 [[nodiscard]] Array randn(const Shape& shape);
+
 [[nodiscard]] Array reshape(const Array& input, const Shape& shape);
 
 // Scalar-to-Tensor commutative operations

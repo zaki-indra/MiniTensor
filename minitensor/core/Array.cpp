@@ -2,6 +2,7 @@
 
 #include <minitensor/minitensor.hpp>
 #include <numeric>
+#include <random>
 #include <utility>
 
 namespace mt
@@ -112,23 +113,93 @@ const float& Array::at(std::initializer_list<std::size_t> indices) const {
 // ---------------------------------------------------------
 // Initializers
 // ---------------------------------------------------------
-Array Array::zeros(const Shape& shape) {
-    return Array(shape);
+Array Array::zeros(const Shape& shape, DataType dtype, DeviceType device) {
+    std::size_t numel = 1;
+    for (auto s : shape)
+        numel *= s;
+    std::vector<float> data(numel, 0.0f);
+    return Array(data, shape, dtype, device);
 }
 
-Array Array::ones(const Shape& shape) {
+Array Array::zeros(const Shape& shape, DataType dtype) {
+    return Array::zeros(shape, dtype, DeviceType::cpu);
+}
+
+Array Array::zeros(const Shape& shape) {
+    return Array::zeros(shape, DataType::f32, DeviceType::cpu);
+}
+
+Array Array::ones(const Shape& shape, DataType dtype, DeviceType device) {
     std::size_t numel = 1;
     for (auto s : shape)
         numel *= s;
     std::vector<float> data(numel, 1.0f);
-    return Array(data, shape);
+    return Array(data, shape, dtype, device);
+}
+
+Array Array::ones(const Shape& shape, DataType dtype) {
+    return Array::ones(shape, dtype, DeviceType::cpu);
+}
+
+Array Array::ones(const Shape& shape) {
+    return Array::ones(shape, DataType::f32, DeviceType::cpu);
+}
+
+Array Array::randn(const Shape& shape, DataType dtype, DeviceType device) {
+    std::size_t numel = 1;
+    for (auto s : shape)
+        numel *= s;
+    std::vector<float>              data(numel);
+    std::random_device              rd;
+    std::mt19937                    gen(rd());
+    std::normal_distribution<float> dis(0.0f, 1.0f);
+    for (auto& x : data) {
+        x = dis(gen);
+    }
+    return Array(data, shape, dtype, device);
+}
+
+Array Array::randn(const Shape& shape, DataType dtype) {
+    return Array::randn(shape, dtype, DeviceType::cpu);
+}
+
+Array Array::randn(const Shape& shape) {
+    return Array::randn(shape, DataType::f32, DeviceType::cpu);
+}
+
+Array zeros(const Shape& shape, DataType dtype, DeviceType device) {
+    return Array::zeros(shape, dtype, device);
+}
+
+Array zeros(const Shape& shape, DataType dtype) {
+    return Array::zeros(shape, dtype);
 }
 
 Array zeros(const Shape& shape) {
     return Array::zeros(shape);
 }
 
+Array ones(const Shape& shape, DataType dtype, DeviceType device) {
+    return Array::ones(shape, dtype, device);
+}
+
+Array ones(const Shape& shape, DataType dtype) {
+    return Array::ones(shape, dtype);
+}
+
 Array ones(const Shape& shape) {
     return Array::ones(shape);
+}
+
+Array randn(const Shape& shape, DataType dtype, DeviceType device) {
+    return Array::randn(shape, dtype, device);
+}
+
+Array randn(const Shape& shape, DataType dtype) {
+    return Array::randn(shape, dtype);
+}
+
+Array randn(const Shape& shape) {
+    return Array::randn(shape);
 }
 } // namespace mt
