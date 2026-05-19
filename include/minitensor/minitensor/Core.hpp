@@ -1,9 +1,9 @@
-// include/minitensor/minitensor/Tensor.hpp
+// include/minitensor/minitensor/Core.hpp
 
 #pragma once
 
 #ifndef _MINITENSOR_HPP_
-#error "include minitensor/minitensor.h in your application, **not** minitensor/minitensor/Core.h"
+#error "include minitensor/minitensor.hpp in your application, **not** minitensor/minitensor/Core.hpp"
 #endif
 
 #include <cstddef>
@@ -40,7 +40,17 @@ concept Index = std::convertible_to<T, std::size_t>;
 // Core Array Types
 // ---------------------------------------------------------
 class Array {
-  public:
+  private:
+    // ---------------------------------------------------------
+    // Metadata
+    // ---------------------------------------------------------
+    bool       defined_ = false;
+    size_t     numel_   = 0;
+    Shape      shape_;
+    Shape      strides_;
+    DataType   dtype_  = DataType::f32;
+    DeviceType device_ = DeviceType::cpu;
+
     // ---------------------------------------------------------
     // Data Storage
     // ---------------------------------------------------------
@@ -52,12 +62,23 @@ class Array {
     std::vector<float> data_;
 
     // ---------------------------------------------------------
+    // Private Helpers
+    // ---------------------------------------------------------
+    void               compute_strides();
+    static std::size_t shape_product(const Shape& s) noexcept;
+
+  public:
+    // ---------------------------------------------------------
     // Constructors
     // ---------------------------------------------------------
     Array() noexcept;
+    Array(const Array& other);
+    Array(Array&& other) noexcept;
     explicit Array(Shape shape);
+    explicit Array(std::vector<float> data);
     Array(std::vector<float> data, Shape shape);
-    Array(std::initializer_list<float> values);
+    Array(std::vector<float> data, Shape shape, DataType dtype);
+    Array(std::vector<float> data, Shape shape, DataType dtype, DeviceType device);
 
     // ---------------------------------------------------------
     // Metadata Getter
@@ -130,22 +151,6 @@ class Array {
     [[nodiscard]] Array argmax(std::size_t dim) const;
     [[nodiscard]] Array softmax(std::size_t dim) const;
     [[nodiscard]] Array log_softmax(std::size_t dim) const;
-
-  private:
-    // ---------------------------------------------------------
-    // Metadata
-    // ---------------------------------------------------------
-    bool       defined_ = false;
-    size_t     numel_;
-    Shape      shape_;
-    Shape      strides_;
-    DataType   dtype_  = DataType::f32;
-    DeviceType device_ = DeviceType::cpu;
-
-    // ---------------------------------------------------------
-    // Private Helpers
-    // ---------------------------------------------------------
-    void compute_strides();
 };
 
 // Convenience free functions

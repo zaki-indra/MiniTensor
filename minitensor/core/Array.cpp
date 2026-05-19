@@ -1,6 +1,8 @@
 // minitensor/core/minitensor.cpp
 
 #include <minitensor/minitensor.hpp>
+#include <numeric>
+#include <utility>
 
 namespace mt
 {
@@ -9,20 +11,43 @@ namespace mt
 // ---------------------------------------------------------
 Array::Array() noexcept = default;
 
-Array::Array(Shape shape) : shape_(std::move(shape)) {
-    std::size_t size = 1;
-    for (auto s : shape_)
-        size *= s;
-    this->data_.resize(size, 0.0f);
+Array::Array(const Array& other)
+    : data_(other.data_), shape_(other.shape_), dtype_(other.dtype_), device_(other.device_), defined_(other.defined_),
+      numel_(other.numel_) {
     compute_strides();
-    this->numel_   = size;
-    this->defined_ = true;
 }
 
-Array::Array(std::vector<float> data, Shape shape) : data_(std::move(data)), shape_(std::move(shape)) {
+Array::Array(Array&& other) noexcept
+    : data_(std::move(other.data_)), shape_(std::move(other.shape_)), dtype_(other.dtype_), device_(other.device_),
+      defined_(other.defined_), numel_(other.numel_) {
     compute_strides();
-    this->numel_   = this->data_.size();
-    this->defined_ = true;
+    other.defined_ = false;
+    other.numel_   = 0;
+}
+
+Array::Array(Shape shape)
+    : Array(std::vector<float>(shape_product(shape), 0.0f), std::move(shape), DataType::f32, DeviceType::cpu) {
+}
+
+Array::Array(std::vector<float> data)
+    : data_(std::move(data)), shape_({data.size()}), dtype_(DataType::f32), device_(DeviceType::cpu), defined_(true) {
+    numel_ = data_.size();
+    compute_strides();
+}
+
+Array::Array(std::vector<float> data, Shape shape)
+    : Array(std::move(data), std::move(shape), DataType::f32, DeviceType::cpu) {
+}
+
+Array::Array(std::vector<float> data, Shape shape, DataType dtype)
+    : Array(std::move(data), std::move(shape), dtype, DeviceType::cpu) {
+}
+
+// Canonical constructor
+Array::Array(std::vector<float> data, Shape shape, DataType dtype, DeviceType device)
+    : data_(std::move(data)), shape_(std::move(shape)), dtype_(dtype), device_(device), defined_(true) {
+    numel_ = data_.size();
+    compute_strides();
 }
 
 void Array::compute_strides() {
@@ -32,6 +57,10 @@ void Array::compute_strides() {
         this->strides_[i] = stride;
         stride *= shape_[i];
     }
+}
+
+std::size_t Array::shape_product(const Shape& s) noexcept {
+    return std::accumulate(s.begin(), s.end(), std::size_t{1}, std::multiplies<>{});
 }
 
 // ---------------------------------------------------------

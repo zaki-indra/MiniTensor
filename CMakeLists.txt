@@ -33,7 +33,7 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-add_executable(minitensor_tests tests/array.cpp)
+add_executable(minitensor_tests tests/test_array.cpp)
 
 # GTest::gtest_main automatically provides the int main() for us!
 target_link_libraries(minitensor_tests
