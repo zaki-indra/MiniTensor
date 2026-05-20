@@ -1,7 +1,6 @@
 // minitensor/core/minitensor.cpp
 
 #include <minitensor/minitensor.hpp>
-#include <numeric>
 #include <random>
 #include <utility>
 
@@ -49,19 +48,6 @@ Array::Array(std::vector<float> data, Shape shape, DataType dtype, DeviceType de
     : data_(std::move(data)), shape_(std::move(shape)), dtype_(dtype), device_(device), defined_(true) {
     numel_ = data_.size();
     compute_strides();
-}
-
-void Array::compute_strides() {
-    this->strides_.resize(shape_.size());
-    std::size_t stride = 1;
-    for (int i = static_cast<int>(shape_.size()) - 1; i >= 0; --i) {
-        this->strides_[i] = stride;
-        stride *= shape_[i];
-    }
-}
-
-std::size_t Array::shape_product(const Shape& s) noexcept {
-    return std::accumulate(s.begin(), s.end(), std::size_t{1}, std::multiplies<>{});
 }
 
 // ---------------------------------------------------------
@@ -201,5 +187,131 @@ Array randn(const Shape& shape, DataType dtype) {
 
 Array randn(const Shape& shape) {
     return Array::randn(shape);
+}
+
+// ---------------------------------------------------------
+// Element-wise operations
+// ---------------------------------------------------------
+Array Array::operator+(const Array& other) const {
+    if (!defined() || !other.defined()) {
+        return Array();
+    }
+    if (!shapes_equal(this->shape(), other.shape())) {
+        return Array();
+    }
+    if (this->dtype() != other.dtype() || this->device() != other.device()) {
+        return Array();
+    }
+
+    const Shape& shape = this->shape();
+    auto         r     = Array::zeros(shape, this->dtype(), this->device());
+    for (std::size_t i = 0; i < this->numel(); ++i) {
+        r.data_[i] = this->data_[i] + other.data_[i];
+    }
+    return r;
+}
+
+Array Array::operator-(const Array& other) const {
+    if (!defined() || !other.defined()) {
+        return Array();
+    }
+    if (!shapes_equal(this->shape(), other.shape())) {
+        return Array();
+    }
+    if (this->dtype() != other.dtype() || this->device() != other.device()) {
+        return Array();
+    }
+
+    const Shape& shape = this->shape();
+    auto         r     = Array::zeros(shape, this->dtype(), this->device());
+    for (std::size_t i = 0; i < this->numel(); ++i) {
+        r.data_[i] = this->data_[i] - other.data_[i];
+    }
+    return r;
+}
+
+Array Array::operator*(const Array& other) const {
+    if (!defined() || !other.defined()) {
+        return Array();
+    }
+    if (!shapes_equal(this->shape(), other.shape())) {
+        return Array();
+    }
+    if (this->dtype() != other.dtype() || this->device() != other.device()) {
+        return Array();
+    }
+
+    const Shape& shape = this->shape();
+    auto         r     = Array::zeros(shape, this->dtype(), this->device());
+    for (std::size_t i = 0; i < this->numel(); ++i) {
+        r.data_[i] = this->data_[i] * other.data_[i];
+    }
+    return r;
+}
+
+Array Array::operator/(const Array& other) const {
+    if (!defined() || !other.defined()) {
+        return Array();
+    }
+    if (!shapes_equal(this->shape(), other.shape())) {
+        return Array();
+    }
+    if (this->dtype() != other.dtype() || this->device() != other.device()) {
+        return Array();
+    }
+
+    const Shape& shape = this->shape();
+    auto         r     = Array::zeros(shape, this->dtype(), this->device());
+    for (std::size_t i = 0; i < this->numel(); ++i) {
+        r.data_[i] = this->data_[i] / other.data_[i];
+    }
+    return r;
+}
+
+// ---------------------------------------------------------
+// Scalar operations
+// ---------------------------------------------------------
+Array Array::operator+(float scalar) const {
+    if (!defined()) {
+        return Array();
+    }
+    auto r = Array::zeros(this->shape(), this->dtype(), this->device());
+    for (std::size_t i = 0; i < this->numel(); ++i) {
+        r.data_[i] = this->data_[i] + scalar;
+    }
+    return r;
+}
+
+Array Array::operator-(float scalar) const {
+    if (!defined()) {
+        return Array();
+    }
+    auto r = Array::zeros(this->shape(), this->dtype(), this->device());
+    for (std::size_t i = 0; i < this->numel(); ++i) {
+        r.data_[i] = this->data_[i] - scalar;
+    }
+    return r;
+}
+
+Array Array::operator*(float scalar) const {
+    if (!defined()) {
+        return Array();
+    }
+    auto r = Array::zeros(this->shape(), this->dtype(), this->device());
+    for (std::size_t i = 0; i < this->numel(); ++i) {
+        r.data_[i] = this->data_[i] * scalar;
+    }
+    return r;
+}
+
+Array Array::operator/(float scalar) const {
+    if (!defined()) {
+        return Array();
+    }
+    auto r = Array::zeros(this->shape(), this->dtype(), this->device());
+    for (std::size_t i = 0; i < this->numel(); ++i) {
+        r.data_[i] = this->data_[i] / scalar;
+    }
+    return r;
 }
 } // namespace mt

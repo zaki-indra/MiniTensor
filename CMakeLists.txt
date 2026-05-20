@@ -9,6 +9,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # --- 1. Main Library Target ---
 add_library(minitensor
     minitensor/core/Array.cpp
+    minitensor/core/utilities.cpp
 )
 
 # Enforce our clean Pitchfork layout boundaries

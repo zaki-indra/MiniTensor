@@ -214,3 +214,84 @@ TEST(ArrayFactory, Ones3D) {
     expect_defined(t, {2, 3, 4}, {12, 4, 1}, 24);
     EXPECT_FLOAT_EQ(t.at({1, 2, 3}), 1.0f);
 }
+
+// ─────────────────────────────────────────────
+// Element-wise operations
+// ─────────────────────────────────────────────
+TEST(ArrayElementwise, Add) {
+    mt::Array a = mt::ones({2, 2});
+    mt::Array b = mt::ones({2, 2});
+    mt::Array c = a + b;
+    expect_defined(c, {2, 2}, {2, 1}, 4);
+    EXPECT_FLOAT_EQ(c.at({0, 0}), 2.0f);
+    EXPECT_FLOAT_EQ(c.at({1, 1}), 2.0f);
+}
+
+TEST(ArrayElementwise, Subtract) {
+    mt::Array a = mt::ones({2, 2});
+    mt::Array b = mt::ones({2, 2});
+    mt::Array c = a - b;
+    expect_defined(c, {2, 2}, {2, 1}, 4);
+    EXPECT_FLOAT_EQ(c.at({0, 0}), 0.0f);
+    EXPECT_FLOAT_EQ(c.at({1, 1}), 0.0f);
+}
+
+TEST(ArrayElementwise, Multiply) {
+    mt::Array a = mt::ones({2, 2});
+    mt::Array b = mt::ones({2, 2});
+    mt::Array c = a * b;
+    expect_defined(c, {2, 2}, {2, 1}, 4);
+    EXPECT_FLOAT_EQ(c.at({0, 0}), 1.0f);
+    EXPECT_FLOAT_EQ(c.at({1, 1}), 1.0f);
+}
+
+TEST(ArrayElementwise, Divide) {
+    mt::Array a = mt::ones({2, 2});
+    mt::Array b = mt::ones({2, 2});
+    mt::Array c = a / b;
+    expect_defined(c, {2, 2}, {2, 1}, 4);
+    EXPECT_FLOAT_EQ(c.at({0, 0}), 1.0f);
+    EXPECT_FLOAT_EQ(c.at({1, 1}), 1.0f);
+}
+
+TEST(ArrayElementwise, AddMismatchedShapes) {
+    mt::Array a = mt::ones({2, 2});
+    mt::Array b = mt::ones({3, 3});
+    mt::Array c = a + b;
+    EXPECT_FALSE(c.defined());
+}
+
+// ---------------------------------------------------------
+// Scalar operations
+// ---------------------------------------------------------
+TEST(ArrayScalarOps, Add) {
+    mt::Array a = mt::ones({2, 2});
+    mt::Array b = a + 3.0f;
+    expect_defined(b, {2, 2}, {2, 1}, 4);
+    EXPECT_FLOAT_EQ(b.at({0, 0}), 4.0f);
+    EXPECT_FLOAT_EQ(b.at({1, 1}), 4.0f);
+}
+
+TEST(ArrayScalarOps, Subtract) {
+    mt::Array a = mt::ones({2, 2});
+    mt::Array b = a - 0.5f;
+    expect_defined(b, {2, 2}, {2, 1}, 4);
+    EXPECT_FLOAT_EQ(b.at({0, 0}), 0.5f);
+    EXPECT_FLOAT_EQ(b.at({1, 1}), 0.5f);
+}
+
+TEST(ArrayScalarOps, Multiply) {
+    mt::Array a = mt::ones({2, 2});
+    mt::Array b = a * 4.0f;
+    expect_defined(b, {2, 2}, {2, 1}, 4);
+    EXPECT_FLOAT_EQ(b.at({0, 0}), 4.0f);
+    EXPECT_FLOAT_EQ(b.at({1, 1}), 4.0f);
+}
+
+TEST(ArrayScalarOps, Divide) {
+    mt::Array a = mt::ones({2, 2});
+    mt::Array b = a / 0.5f;
+    expect_defined(b, {2, 2}, {2, 1}, 4);
+    EXPECT_FLOAT_EQ(b.at({0, 0}), 2.0f);
+    EXPECT_FLOAT_EQ(b.at({1, 1}), 2.0f);
+}

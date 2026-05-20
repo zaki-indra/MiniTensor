@@ -66,6 +66,7 @@ class Array {
     // ---------------------------------------------------------
     void               compute_strides();
     static std::size_t shape_product(const Shape& s) noexcept;
+    static bool        shapes_equal(const Shape& a, const Shape& b) noexcept;
 
   public:
     // ---------------------------------------------------------
@@ -116,29 +117,31 @@ class Array {
     [[nodiscard]] static Array randn(const Shape& shape, DataType dtype);
     [[nodiscard]] static Array randn(const Shape& shape);
 
-    [[nodiscard]] Array grad() const;
-    void                zero_grad();
-    void                backward();
-    void                backward(const Array& grad_output);
-
-    [[nodiscard]] Array detach() const;
-
+    // ---------------------------------------------------------
+    // Array utilities
+    // ---------------------------------------------------------
     [[nodiscard]] float item() const;
 
+    // ---------------------------------------------------------
+    // Array Manipulation
+    // ---------------------------------------------------------
     [[nodiscard]] Array reshape(const Shape& new_shape) const;
     [[nodiscard]] Array flatten(std::size_t start_dim = 0, std::size_t end_dim = static_cast<std::size_t>(-1)) const;
     [[nodiscard]] Array transpose(std::size_t dim0, std::size_t dim1) const;
     [[nodiscard]] Array unsqueeze(std::size_t dim) const;
     [[nodiscard]] Array squeeze(std::optional<std::size_t> dim = std::nullopt) const;
 
-    // Tensor-to-Tensor operations
+    // ---------------------------------------------------------
+    // Element-wise operations
+    // ---------------------------------------------------------
     [[nodiscard]] Array operator+(const Array& other) const;
     [[nodiscard]] Array operator-(const Array& other) const;
     [[nodiscard]] Array operator*(const Array& other) const;
     [[nodiscard]] Array operator/(const Array& other) const;
-    [[nodiscard]] Array operator-() const;
 
-    // Tensor-to-Scalar operations
+    // ---------------------------------------------------------
+    // Scalar operations
+    // ---------------------------------------------------------
     [[nodiscard]] Array operator+(float scalar) const;
     [[nodiscard]] Array operator-(float scalar) const;
     [[nodiscard]] Array operator*(float scalar) const;
