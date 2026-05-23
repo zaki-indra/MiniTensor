@@ -192,3 +192,69 @@ TEST(ArrayMultiDataType, Int32PrecisionWithoutFloatDecay) {
     mt::Array c(single_data);
     EXPECT_EQ(c.item<int32_t>(), 42);
 }
+
+// ─────────────────────────────────────────────
+// Clone, Cast, and Memory Management
+// ─────────────────────────────────────────────
+TEST(ArrayMemoryManagement, CopySharesStorage) {
+    std::vector<float> data{1.0f, 2.0f, 3.0f};
+    mt::Array a(data);
+    mt::Array b = a;
+
+    // Modifying one should modify the other since they share the raw Storage
+    b.at<float>({0}) = 10.0f;
+    EXPECT_FLOAT_EQ(a.at<float>({0}), 10.0f);
+}
+
+TEST(ArrayMemoryManagement, CloneIsIndependent) {
+    std::vector<float> data{1.0f, 2.0f, 3.0f};
+    mt::Array a(data);
+    mt::Array b = a.clone();
+
+    // Modifying the clone should NOT affect the original array
+    b.at<float>({0}) = 10.0f;
+    EXPECT_FLOAT_EQ(a.at<float>({0}), 1.0f);
+    EXPECT_FLOAT_EQ(b.at<float>({0}), 10.0f);
+}
+
+TEST(ArrayMemoryManagement, AssignmentOperators) {
+    std::vector<float> data1{1.0f, 2.0f, 3.0f};
+    std::vector<float> data2{4.0f, 5.0f, 6.0f};
+
+    mt::Array a(data1);
+    mt::Array b(data2);
+
+    // Copy assignment
+    b = a;
+    EXPECT_FLOAT_EQ(b.at<float>({0}), 1.0f);
+    
+    // Sharing verification
+    b.at<float>({0}) = 10.0f;
+    EXPECT_FLOAT_EQ(a.at<float>({0}), 10.0f);
+
+    // Move assignment
+    mt::Array c;
+    c = std::move(b);
+    EXPECT_TRUE(c.defined());
+    EXPECT_FALSE(b.defined());
+    EXPECT_FLOAT_EQ(c.at<float>({0}), 10.0f);
+}
+
+TEST(ArrayOperations, Cast) {
+    std::vector<double> double_data{1.5, -2.7, 3.0};
+    mt::Array a(std::span<const double>(double_data), {3});
+
+    // Cast from f64 to i32
+    mt::Array b = a.cast(mt::DataType::i32);
+    EXPECT_EQ(b.dtype(), mt::DataType::i32);
+    EXPECT_EQ(b.at<int32_t>({0}), 1);
+    EXPECT_EQ(b.at<int32_t>({1}), -2);
+    EXPECT_EQ(b.at<int32_t>({2}), 3);
+
+    // Cast from i32 to f32
+    mt::Array c = b.cast(mt::DataType::f32);
+    EXPECT_EQ(c.dtype(), mt::DataType::f32);
+    EXPECT_FLOAT_EQ(c.at<float>({0}), 1.0f);
+    EXPECT_FLOAT_EQ(c.at<float>({1}), -2.0f);
+    EXPECT_FLOAT_EQ(c.at<float>({2}), 3.0f);
+}

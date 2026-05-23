@@ -125,7 +125,7 @@ class Array {
     // ---------------------------------------------------------
     // Data Storage
     // ---------------------------------------------------------
-    std::shared_ptr<Storage> data_;
+    Storage* data_ = nullptr;
 
     // ---------------------------------------------------------
     // Private Helpers
@@ -138,18 +138,23 @@ class Array {
     static Shape broadcast_shapes(const Shape& a, const Shape& b);
     Array        broadcast_to(const Shape& target_shape) const;
 
-    // Bridge functions to manage incomplete Storage type
+    // Private functions to manage storage
     void        allocate_storage();
     void*       raw_data() noexcept;
     const void* raw_data() const noexcept;
 
   public:
     // ---------------------------------------------------------
-    // Constructors
+    // Constructors & Destructors
     // ---------------------------------------------------------
     Array() noexcept;
     Array(const Array& other);
     Array(Array&& other) noexcept;
+    ~Array();
+
+    // Assignment Operators
+    Array& operator=(const Array& other);
+    Array& operator=(Array&& other) noexcept;
 
     // Internal generic constructor
     Array(Shape shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
@@ -229,7 +234,12 @@ class Array {
         return static_cast<const T*>(raw_data())[0];
     }
 
+    // ---------------------------------------------------------
+    // Clone, cast, and move device
+    // ---------------------------------------------------------
     [[nodiscard]] Array clone() const;
+    [[nodiscard]] Array cast(DataType dtype) const;
+    [[nodiscard]] Array to(DeviceType device) const;
 
     // ---------------------------------------------------------
     // Static Initializers

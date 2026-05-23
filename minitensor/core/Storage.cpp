@@ -28,6 +28,20 @@ Storage::~Storage() {
     }
 }
 
+void Storage::retain() noexcept {
+    ++ref_count_;
+}
+
+void Storage::release() noexcept {
+    if (--ref_count_ == 0) {
+        delete this;
+    }
+}
+
+int Storage::ref_count() const noexcept {
+    return ref_count_;
+}
+
 void* Storage::data() noexcept {
     return this->data_;
 }

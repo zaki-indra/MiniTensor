@@ -40,10 +40,10 @@ namespace mt
 {
 
 // ---------------------------------------------------------
-// Private Bridge Helpers
+// Private Helpers
 // ---------------------------------------------------------
 void Array::allocate_storage() {
-    data_ = std::make_shared<Storage>(numel_, dtype_, device_);
+    data_ = new Storage(numel_, dtype_, device_);
 }
 
 void* Array::raw_data() noexcept {
@@ -81,7 +81,7 @@ void Array::compute_strides() {
 }
 
 // ---------------------------------------------------------
-// Constructors
+// Constructors & Destructors
 // ---------------------------------------------------------
 Array::Array() noexcept = default;
 
@@ -89,14 +89,70 @@ Array::Array(const Array& other)
     : defined_(other.defined_), is_view_(other.is_view_), numel_(other.numel_), shape_(other.shape_),
       strides_(other.strides_), offsets_(other.offsets_), dtype_(other.dtype_), device_(other.device_),
       data_(other.data_) {
+    if (data_) {
+        data_->retain();
+    }
 }
 
 Array::Array(Array&& other) noexcept
     : defined_(other.defined_), is_view_(other.is_view_), numel_(other.numel_), shape_(std::move(other.shape_)),
       strides_(std::move(other.strides_)), offsets_(std::move(other.offsets_)), dtype_(other.dtype_),
-      device_(other.device_), data_(std::move(other.data_)) {
+      device_(other.device_), data_(other.data_) {
+    other.data_    = nullptr;
     other.defined_ = false;
     other.numel_   = 0;
+}
+
+Array::~Array() {
+    if (data_) {
+        data_->release();
+    }
+}
+
+// ---------------------------------------------------------
+// Assignment Operators
+// ---------------------------------------------------------
+Array& Array::operator=(const Array& other) {
+    if (this != &other) {
+        if (data_) {
+            data_->release();
+        }
+        defined_ = other.defined_;
+        is_view_ = other.is_view_;
+        numel_   = other.numel_;
+        shape_   = other.shape_;
+        strides_ = other.strides_;
+        offsets_ = other.offsets_;
+        dtype_   = other.dtype_;
+        device_  = other.device_;
+        data_    = other.data_;
+        if (data_) {
+            data_->retain();
+        }
+    }
+    return *this;
+}
+
+Array& Array::operator=(Array&& other) noexcept {
+    if (this != &other) {
+        if (data_) {
+            data_->release();
+        }
+        defined_ = other.defined_;
+        is_view_ = other.is_view_;
+        numel_   = other.numel_;
+        shape_   = std::move(other.shape_);
+        strides_ = std::move(other.strides_);
+        offsets_ = std::move(other.offsets_);
+        dtype_   = other.dtype_;
+        device_  = other.device_;
+        data_    = other.data_;
+
+        other.data_    = nullptr;
+        other.defined_ = false;
+        other.numel_   = 0;
+    }
+    return *this;
 }
 
 Array::Array(Shape shape, DataType dtype, DeviceType device)
@@ -139,12 +195,30 @@ DeviceType Array::device() const noexcept {
     return this->device_;
 }
 
+// ---------------------------------------------------------
+// Clone, cast, and move device
+// ---------------------------------------------------------
 Array Array::clone() const {
     if (!defined())
         return Array();
     Array cloned(shape_, dtype_, device_);
     std::memcpy(cloned.raw_data(), this->raw_data(), numel_ * element_size(dtype_));
     return cloned;
+}
+
+Array Array::cast(DataType new_dtype) const {
+    if (!defined())
+        return Array();
+    Array casted(shape_, new_dtype, device_);
+    MT_DISPATCH_ALL_TYPES(this->dtype(), SrcT, [&]() {
+        MT_DISPATCH_ALL_TYPES(new_dtype, DstT, [&]() {
+            const SrcT* src_ptr = static_cast<const SrcT*>(this->raw_data());
+            DstT*       dst_ptr = static_cast<DstT*>(casted.raw_data());
+            for (std::size_t i = 0; i < numel_; ++i)
+                dst_ptr[i] = static_cast<DstT>(src_ptr[i]);
+        });
+    });
+    return casted;
 }
 
 // ---------------------------------------------------------
