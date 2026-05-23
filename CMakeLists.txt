@@ -9,6 +9,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # --- 1. Main Library Target ---
 add_library(minitensor
     minitensor/core/Array.cpp
+    minitensor/core/Storage.cpp
+    minitensor/core/Allocator.cpp
     minitensor/core/utilities.cpp
 )
 

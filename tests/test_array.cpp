@@ -295,3 +295,68 @@ TEST(ArrayScalarOps, Divide) {
     EXPECT_FLOAT_EQ(b.at({0, 0}), 2.0f);
     EXPECT_FLOAT_EQ(b.at({1, 1}), 2.0f);
 }
+
+// ─────────────────────────────────────────────
+// Multi-DataType Support
+// ─────────────────────────────────────────────
+TEST(ArrayMultiDataType, DoublePrecision) {
+    std::vector<float> data{1.5f, 2.5f, 3.5f};
+    mt::Array a(data, {3}, mt::DataType::f64);
+    EXPECT_EQ(a.dtype(), mt::DataType::f64);
+    EXPECT_EQ(a.numel(), 3);
+    
+    // Test scalar operations and item() on double
+    mt::Array b = a + 2.0f;
+    EXPECT_EQ(b.dtype(), mt::DataType::f64);
+    EXPECT_TRUE(b.defined());
+    
+    // Convert to a 1-element slice or clone to check items via item()
+    mt::Array slice(std::vector<float>{b.get_item_as_float(0)}, {1}, mt::DataType::f32);
+    EXPECT_FLOAT_EQ(slice.item(), 3.5f);
+}
+
+TEST(ArrayMultiDataType, Float16Precision) {
+    std::vector<float> data{1.25f, -2.5f, 3.75f};
+    mt::Array a(data, {3}, mt::DataType::f16);
+    EXPECT_EQ(a.dtype(), mt::DataType::f16);
+    EXPECT_EQ(a.numel(), 3);
+    
+    mt::Array b = a * 2.0f;
+    EXPECT_EQ(b.dtype(), mt::DataType::f16);
+    EXPECT_TRUE(b.defined());
+    
+    // Verify conversions
+    mt::Array slice(std::vector<float>{b.get_item_as_float(0)}, {1}, mt::DataType::f32);
+    EXPECT_FLOAT_EQ(slice.item(), 2.5f);
+    
+    mt::Array slice2(std::vector<float>{b.get_item_as_float(1)}, {1}, mt::DataType::f32);
+    EXPECT_FLOAT_EQ(slice2.item(), -5.0f);
+}
+
+TEST(ArrayMultiDataType, BFloat16Precision) {
+    std::vector<float> data{10.0f, -20.0f, 30.0f};
+    mt::Array a(data, {3}, mt::DataType::bf16);
+    EXPECT_EQ(a.dtype(), mt::DataType::bf16);
+    EXPECT_EQ(a.numel(), 3);
+    
+    mt::Array b = a - 5.0f;
+    EXPECT_EQ(b.dtype(), mt::DataType::bf16);
+    EXPECT_TRUE(b.defined());
+    
+    // Verify conversions
+    mt::Array slice(std::vector<float>{b.get_item_as_float(0)}, {1}, mt::DataType::f32);
+    EXPECT_FLOAT_EQ(slice.item(), 5.0f);
+    
+    mt::Array slice2(std::vector<float>{b.get_item_as_float(1)}, {1}, mt::DataType::f32);
+    EXPECT_FLOAT_EQ(slice2.item(), -25.0f);
+}
+
+TEST(ArrayMultiDataType, CloneSupport) {
+    std::vector<float> data{4.5f, 5.5f};
+    mt::Array a(data, {2}, mt::DataType::f64);
+    mt::Array b = a.clone();
+    EXPECT_EQ(b.dtype(), mt::DataType::f64);
+    EXPECT_EQ(b.numel(), 2);
+    mt::Array slice(std::vector<float>{b.get_item_as_float(0)}, {1}, mt::DataType::f32);
+    EXPECT_FLOAT_EQ(slice.item(), 4.5f);
+}
