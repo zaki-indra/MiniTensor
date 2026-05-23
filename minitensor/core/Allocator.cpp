@@ -1,8 +1,11 @@
+// minitensor/core/Allocator.cpp
+
 #include "Allocator.hpp"
+
+#include <cstdlib>
 
 namespace mt
 {
-
 void* DefaultAllocator::allocate(std::size_t n, std::size_t size) {
     if (n == 0 || size == 0) {
         return nullptr;

@@ -1,4 +1,4 @@
-// minitensor/core/minitensor.cpp
+// minitensor/core/Array.cpp
 
 #include "Storage.hpp"
 
@@ -92,14 +92,14 @@ float Array::get_item_as_float(std::size_t index) const {
         return 0.0f;
     void* ptr = data_->data();
     switch (dtype_) {
+    case DataType::i32:
+        return static_cast<float>(static_cast<int32_t*>(ptr)[index]);
+    case DataType::i64:
+        return static_cast<float>(static_cast<int64_t*>(ptr)[index]);
     case DataType::f32:
         return static_cast<float*>(ptr)[index];
     case DataType::f64:
         return static_cast<float>(static_cast<double*>(ptr)[index]);
-    case DataType::f16:
-        return f16_to_float(static_cast<uint16_t*>(ptr)[index]);
-    case DataType::bf16:
-        return bf16_to_float(static_cast<uint16_t*>(ptr)[index]);
     }
     return 0.0f;
 }
@@ -109,17 +109,17 @@ void Array::set_item_from_float(std::size_t index, float value) {
         return;
     void* ptr = data_->data();
     switch (dtype_) {
+    case DataType::i32:
+        static_cast<int32_t*>(ptr)[index] = static_cast<int32_t>(value);
+        break;
+    case DataType::i64:
+        static_cast<int64_t*>(ptr)[index] = static_cast<int64_t>(value);
+        break;
     case DataType::f32:
         static_cast<float*>(ptr)[index] = value;
         break;
     case DataType::f64:
         static_cast<double*>(ptr)[index] = static_cast<double>(value);
-        break;
-    case DataType::f16:
-        static_cast<uint16_t*>(ptr)[index] = float_to_f16(value);
-        break;
-    case DataType::bf16:
-        static_cast<uint16_t*>(ptr)[index] = float_to_bf16(value);
         break;
     }
 }
@@ -162,14 +162,6 @@ Array::Array(std::vector<float> data)
     }
 }
 
-Array::Array(std::vector<float> data, Shape shape)
-    : Array(std::move(data), std::move(shape), DataType::f32, DeviceType::cpu) {
-}
-
-Array::Array(std::vector<float> data, Shape shape, DataType dtype)
-    : Array(std::move(data), std::move(shape), dtype, DeviceType::cpu) {
-}
-
 // Canonical constructor
 Array::Array(std::vector<float> data, Shape shape, DataType dtype, DeviceType device)
     : shape_(std::move(shape)), dtype_(dtype), device_(device), defined_(true) {
@@ -180,6 +172,16 @@ Array::Array(std::vector<float> data, Shape shape, DataType dtype, DeviceType de
         float val = (i < data.size()) ? data[i] : 0.0f;
         set_item_from_float(i, val);
     }
+}
+
+// Void canconical constructor
+Array::Array(const void* data, Shape shape, DataType dtype, DeviceType device)
+    : shape_(std::move(shape)), dtype_(dtype), device_(device), defined_(true) {
+    numel_ = shape_product(shape_);
+    compute_strides();
+    data_                 = std::make_shared<Storage>(numel_, dtype_, device_);
+    std::size_t type_size = element_size(dtype);
+    std::memcpy(data_->data(), data, numel_ * type_size);
 }
 
 // ---------------------------------------------------------
@@ -263,28 +265,12 @@ Array Array::zeros(const Shape& shape, DataType dtype, DeviceType device) {
     return Array(data, shape, dtype, device);
 }
 
-Array Array::zeros(const Shape& shape, DataType dtype) {
-    return Array::zeros(shape, dtype, DeviceType::cpu);
-}
-
-Array Array::zeros(const Shape& shape) {
-    return Array::zeros(shape, DataType::f32, DeviceType::cpu);
-}
-
 Array Array::ones(const Shape& shape, DataType dtype, DeviceType device) {
     std::size_t numel = 1;
     for (auto s : shape)
         numel *= s;
     std::vector<float> data(numel, 1.0f);
     return Array(data, shape, dtype, device);
-}
-
-Array Array::ones(const Shape& shape, DataType dtype) {
-    return Array::ones(shape, dtype, DeviceType::cpu);
-}
-
-Array Array::ones(const Shape& shape) {
-    return Array::ones(shape, DataType::f32, DeviceType::cpu);
 }
 
 Array Array::randn(const Shape& shape, DataType dtype, DeviceType device) {
@@ -301,48 +287,16 @@ Array Array::randn(const Shape& shape, DataType dtype, DeviceType device) {
     return Array(data, shape, dtype, device);
 }
 
-Array Array::randn(const Shape& shape, DataType dtype) {
-    return Array::randn(shape, dtype, DeviceType::cpu);
-}
-
-Array Array::randn(const Shape& shape) {
-    return Array::randn(shape, DataType::f32, DeviceType::cpu);
-}
-
 Array zeros(const Shape& shape, DataType dtype, DeviceType device) {
     return Array::zeros(shape, dtype, device);
-}
-
-Array zeros(const Shape& shape, DataType dtype) {
-    return Array::zeros(shape, dtype);
-}
-
-Array zeros(const Shape& shape) {
-    return Array::zeros(shape);
 }
 
 Array ones(const Shape& shape, DataType dtype, DeviceType device) {
     return Array::ones(shape, dtype, device);
 }
 
-Array ones(const Shape& shape, DataType dtype) {
-    return Array::ones(shape, dtype);
-}
-
-Array ones(const Shape& shape) {
-    return Array::ones(shape);
-}
-
 Array randn(const Shape& shape, DataType dtype, DeviceType device) {
     return Array::randn(shape, dtype, device);
-}
-
-Array randn(const Shape& shape, DataType dtype) {
-    return Array::randn(shape, dtype);
-}
-
-Array randn(const Shape& shape) {
-    return Array::randn(shape);
 }
 
 // ---------------------------------------------------------

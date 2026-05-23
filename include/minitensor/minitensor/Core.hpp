@@ -21,10 +21,10 @@ namespace mt
 // Basic Types
 // ---------------------------------------------------------
 enum class DataType {
-    f16,
+    i32,
+    i64,
     f32,
     f64,
-    bf16,
 };
 
 // ---------------------------------------------------------
@@ -34,6 +34,16 @@ template <DataType D>
 struct DataTypeToType;
 
 template <>
+struct DataTypeToType<DataType::i32> {
+    using type = int32_t;
+};
+
+template <>
+struct DataTypeToType<DataType::i64> {
+    using type = int64_t;
+};
+
+template <>
 struct DataTypeToType<DataType::f32> {
     using type = float;
 };
@@ -41,16 +51,6 @@ struct DataTypeToType<DataType::f32> {
 template <>
 struct DataTypeToType<DataType::f64> {
     using type = double;
-};
-
-template <>
-struct DataTypeToType<DataType::f16> {
-    using type = uint16_t;
-};
-
-template <>
-struct DataTypeToType<DataType::bf16> {
-    using type = uint16_t;
 };
 
 template <DataType D>
@@ -71,14 +71,14 @@ struct TypeToDataType<double> {
 
 constexpr std::size_t element_size(DataType dtype) noexcept {
     switch (dtype) {
-    case DataType::f16:
-        return 2;
+    case DataType::i32:
+        return 4;
+    case DataType::i64:
+        return 8;
     case DataType::f32:
         return 4;
     case DataType::f64:
         return 8;
-    case DataType::bf16:
-        return 2;
     }
     return 0;
 }
@@ -142,9 +142,8 @@ class Array {
     Array(Array&& other) noexcept;
     explicit Array(Shape shape);
     explicit Array(std::vector<float> data);
-    Array(std::vector<float> data, Shape shape);
-    Array(std::vector<float> data, Shape shape, DataType dtype);
-    Array(std::vector<float> data, Shape shape, DataType dtype, DeviceType device);
+    Array(std::vector<float> data, Shape shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
+    Array(const void* data, Shape shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
 
     // ---------------------------------------------------------
     // Metadata Getter
@@ -173,15 +172,12 @@ class Array {
     // ---------------------------------------------------------
     // Static Initializers
     // ---------------------------------------------------------
-    [[nodiscard]] static Array zeros(const Shape& shape, DataType dtype, DeviceType device);
-    [[nodiscard]] static Array zeros(const Shape& shape, DataType dtype);
-    [[nodiscard]] static Array zeros(const Shape& shape);
-    [[nodiscard]] static Array ones(const Shape& shape, DataType dtype, DeviceType device);
-    [[nodiscard]] static Array ones(const Shape& shape, DataType dtype);
-    [[nodiscard]] static Array ones(const Shape& shape);
-    [[nodiscard]] static Array randn(const Shape& shape, DataType dtype, DeviceType device);
-    [[nodiscard]] static Array randn(const Shape& shape, DataType dtype);
-    [[nodiscard]] static Array randn(const Shape& shape);
+    [[nodiscard]] static Array zeros(const Shape& shape, DataType dtype = DataType::f32,
+                                     DeviceType device = DeviceType::cpu);
+    [[nodiscard]] static Array ones(const Shape& shape, DataType dtype = DataType::f32,
+                                    DeviceType device = DeviceType::cpu);
+    [[nodiscard]] static Array randn(const Shape& shape, DataType dtype = DataType::f32,
+                                     DeviceType device = DeviceType::cpu);
     [[nodiscard]] static Array empty(const Shape& shape);
     [[nodiscard]] static Array full(const Shape& shape, float fill_value);
     [[nodiscard]] static Array eye(std::size_t n);
@@ -282,15 +278,9 @@ class Array {
 };
 
 // Convenience free functions
-[[nodiscard]] Array zeros(const Shape& shape, DataType dtype, DeviceType device);
-[[nodiscard]] Array zeros(const Shape& shape, DataType dtype);
-[[nodiscard]] Array zeros(const Shape& shape);
-[[nodiscard]] Array ones(const Shape& shape, DataType dtype, DeviceType device);
-[[nodiscard]] Array ones(const Shape& shape, DataType dtype);
-[[nodiscard]] Array ones(const Shape& shape);
-[[nodiscard]] Array randn(const Shape& shape, DataType dtype, DeviceType device);
-[[nodiscard]] Array randn(const Shape& shape, DataType dtype);
-[[nodiscard]] Array randn(const Shape& shape);
+[[nodiscard]] Array zeros(const Shape& shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
+[[nodiscard]] Array ones(const Shape& shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
+[[nodiscard]] Array randn(const Shape& shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
 [[nodiscard]] Array empty(const Shape& shape);
 [[nodiscard]] Array full(const Shape& shape, float fill_value);
 [[nodiscard]] Array eye(std::size_t n);
