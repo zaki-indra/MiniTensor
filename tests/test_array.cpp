@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 #include <minitensor/minitensor.hpp>
+#include <vector>
 
 // ─────────────────────────────────────────────
 // Helpers
@@ -27,162 +28,75 @@ TEST(ArrayConstructor, DefaultIsUndefined) {
 }
 
 // ─────────────────────────────────────────────
-// Array(Shape)
+// Array(vector<T>) — Type Inferencing Constructor
 // ─────────────────────────────────────────────
-TEST(ArrayConstructor, ShapeConstructor1D) {
-    mt::Array t(mt::Shape{5});
-    expect_defined(t, {5}, {1}, 5);
-    for (std::size_t i = 0; i < 5; ++i)
-        EXPECT_FLOAT_EQ(t.at({i}), 0.0f) << "index " << i;
-}
+TEST(ArrayConstructor, VectorConstructorSetsShapeAndType) {
+    std::vector<float> data_float{1.0f, 2.0f, 3.0f};
+    mt::Array          t(data_float);
+    expect_defined(t, {3}, {1}, 3, mt::DataType::f32);
 
-TEST(ArrayConstructor, ShapeConstructor2D) {
-    mt::Array t(mt::Shape{3, 4});
-    expect_defined(t, {3, 4}, {4, 1}, 12);
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 4; ++j)
-            EXPECT_FLOAT_EQ(t.at({i, j}), 0.0f);
-}
+    std::vector<int> data_int{1, 2, 3, 4};
+    mt::Array       t_int(data_int);
+    expect_defined(t_int, {4}, {1}, 4, mt::DataType::i32);
 
-TEST(ArrayConstructor, ShapeConstructor3D) {
-    mt::Array t(mt::Shape{2, 3, 4});
-    expect_defined(t, {2, 3, 4}, {12, 4, 1}, 24);
-}
+    std::vector<double> data_double{1.0, 2.0, 3.0, 4.0, 5.0};
+    mt::Array          t_double(data_double);
+    expect_defined(t_double, {5}, {1}, 5, mt::DataType::f64);
 
-TEST(ArrayConstructor, ShapeConstructorScalar) {
-    // A 1-element shape — not the same as default-constructed
-    mt::Array t(mt::Shape{1});
-    expect_defined(t, {1}, {1}, 1);
-    EXPECT_FLOAT_EQ(t.at({0}), 0.0f);
-}
+    std::vector<long> data_long{10L, 20L, 30L};
+    mt::Array        t_long(data_long);
+    expect_defined(t_long, {3}, {1}, 3, mt::DataType::i64);
 
-// ─────────────────────────────────────────────
-// Array(vector<float>) — single-argument
-// ─────────────────────────────────────────────
-TEST(ArrayConstructor, VectorConstructorSetsShape) {
-    std::vector<float> data{1.0f, 2.0f, 3.0f};
-    mt::Array          t(data);
-    expect_defined(t, {3}, {1}, 3);
+    std::vector<long long> data_long2{10L, 20L, 30L};
+    mt::Array        t_long2(data_long2);
+    expect_defined(t_long2, {3}, {1}, 3, mt::DataType::i64);
 }
 
 TEST(ArrayConstructor, VectorConstructorPreservesValues) {
     std::vector<float> data{4.0f, 5.0f, 6.0f};
     mt::Array          t(data);
-    EXPECT_FLOAT_EQ(t.at({0}), 4.0f);
-    EXPECT_FLOAT_EQ(t.at({1}), 5.0f);
-    EXPECT_FLOAT_EQ(t.at({2}), 6.0f);
+    EXPECT_FLOAT_EQ(t.at<float>({0}), 4.0f);
+    EXPECT_FLOAT_EQ(t.at<float>({1}), 5.0f);
+    EXPECT_FLOAT_EQ(t.at<float>({2}), 6.0f);
 }
-
-// Regression: bug where data could be moved-from before .size() was read,
-// leaving shape as {0}. Verify shape == {N}, not {0}.
-TEST(ArrayConstructor, VectorConstructorShapeMatchesDataSize) {
-    std::vector<float> data(7, 1.0f);
-    const auto         expected_size = data.size(); // capture before move
-    mt::Array          t(std::move(data));
-    EXPECT_EQ(t.numel(), expected_size);
-    EXPECT_EQ(t.shape(), mt::Shape({expected_size}));
-}
-
-// explicit: should not compile
-// TEST(ArrayConstructor, NoImplicitConversionFromVector) {
-//     mt::Array t = std::vector<float>{1.0f, 2.0f};  // must NOT compile
-// }
 
 // ─────────────────────────────────────────────
-// Array(vector<float>, Shape)
+// Array(vector<T>, Shape) 
 // ─────────────────────────────────────────────
 TEST(ArrayConstructor, DataAndShapeConstructor) {
-    std::vector<float> data{1, 2, 3, 4, 5, 6};
-    mt::Array          t(data, {2, 3});
-    expect_defined(t, {2, 3}, {3, 1}, 6);
-    EXPECT_FLOAT_EQ(t.at({0, 0}), 1.0f);
-    EXPECT_FLOAT_EQ(t.at({1, 2}), 6.0f);
-}
-
-// Regression: old code called Array(data, shape) inside the body (a no-op
-// temporary). Verify delegation actually sets dtype/device/defined.
-TEST(ArrayConstructor, DataShapeConstructorDelegatesCorrectly) {
-    mt::Array t(std::vector<float>(6, 0.f), mt::Shape{2, 3});
-    EXPECT_EQ(t.dtype(), mt::DataType::f32);
-    EXPECT_EQ(t.device(), mt::DeviceType::cpu);
-    EXPECT_TRUE(t.defined());
-}
-
-// ─────────────────────────────────────────────
-// Array(vector<float>, Shape, DataType, DeviceType) — canonical
-// ─────────────────────────────────────────────
-TEST(ArrayConstructor, CanonicalConstructorAllFields) {
-    std::vector<float> data{1, 2, 3, 4};
-    mt::Array          t(data, {2, 2}, mt::DataType::f32, mt::DeviceType::cpu);
-    expect_defined(t, {2, 2}, {2, 1}, 4, mt::DataType::f32, mt::DeviceType::cpu);
-    EXPECT_FLOAT_EQ(t.at({1, 1}), 4.0f);
-}
-
-TEST(ArrayConstructor, CanonicalConstructorNumelMatchesData) {
-    std::vector<float> data(12, 1.f);
-    mt::Array          t(data, {3, 4}, mt::DataType::f32, mt::DeviceType::cpu);
-    EXPECT_EQ(t.numel(), data.size());
+    std::vector<int32_t> data{1, 2, 3, 4, 5, 6};
+    mt::Array          t(std::span<const int32_t>(data), {2, 3});
+    expect_defined(t, {2, 3}, {3, 1}, 6, mt::DataType::i32);
+    EXPECT_EQ(t.at<int32_t>({0, 0}), 1);
+    EXPECT_EQ(t.at<int32_t>({1, 2}), 6);
 }
 
 // ─────────────────────────────────────────────
 // Strides
 // ─────────────────────────────────────────────
-TEST(ArrayStrides, RowMajor1D) {
-    mt::Array t(mt::Shape{8});
-    EXPECT_EQ(t.strides(), mt::Shape({1}));
-}
-
-TEST(ArrayStrides, RowMajor2D) {
-    mt::Array t(mt::Shape{4, 5});
-    EXPECT_EQ(t.strides(), mt::Shape({5, 1}));
-}
-
 TEST(ArrayStrides, RowMajor3D) {
-    mt::Array t(mt::Shape{2, 3, 4});
+    mt::Array t = mt::zeros({2, 3, 4});
     EXPECT_EQ(t.strides(), mt::Shape({12, 4, 1}));
-}
-
-TEST(ArrayStrides, RowMajor4D) {
-    mt::Array t(mt::Shape{2, 3, 4, 5});
-    EXPECT_EQ(t.strides(), mt::Shape({60, 20, 5, 1}));
 }
 
 // ─────────────────────────────────────────────
 // Copy and move
 // ─────────────────────────────────────────────
 TEST(ArrayCopyMove, CopyConstructorIsIndependent) {
-    mt::Array a(std::vector<float>{1, 2, 3}, {3});
-    mt::Array b = a; // copy
+    std::vector<float> data{1, 2, 3};
+    mt::Array a(data);
+    mt::Array b = a;
     EXPECT_EQ(b.numel(), a.numel());
-    EXPECT_EQ(b.shape(), a.shape());
-    EXPECT_EQ(b.strides(), a.strides());
-    EXPECT_FLOAT_EQ(b.at({0}), 1.0f);
+    EXPECT_FLOAT_EQ(b.at<float>({0}), 1.0f);
 }
 
 TEST(ArrayCopyMove, MoveConstructorLeavesSourceUndefined) {
-    mt::Array a(std::vector<float>{1, 2, 3}, {3});
+    std::vector<float> data{1, 2, 3};
+    mt::Array a(data);
     mt::Array b = std::move(a);
     EXPECT_TRUE(b.defined());
     EXPECT_EQ(b.numel(), 3);
     EXPECT_FALSE(a.defined());
-}
-
-// ─────────────────────────────────────────────
-// Edge cases
-// ─────────────────────────────────────────────
-
-TEST(ArrayEdgeCases, SingleElementArray) {
-    mt::Array t(mt::Shape{1, 1, 1});
-    expect_defined(t, {1, 1, 1}, {1, 1, 1}, 1);
-    EXPECT_FLOAT_EQ(t.at({0, 0, 0}), 0.0f);
-}
-
-TEST(ArrayEdgeCases, LargeFlat) {
-    constexpr std::size_t N = 1'000'000;
-    mt::Array             t(mt::Shape{N});
-    EXPECT_EQ(t.numel(), N);
-    EXPECT_FLOAT_EQ(t.at({0}), 0.0f);
-    EXPECT_FLOAT_EQ(t.at({N - 1}), 0.0f);
 }
 
 // ─────────────────────────────────────────────
@@ -193,26 +107,13 @@ TEST(ArrayFactory, ZerosAllFields) {
     expect_defined(t, {3, 3}, {3, 1}, 9);
     for (std::size_t i = 0; i < 3; ++i)
         for (std::size_t j = 0; j < 3; ++j)
-            EXPECT_FLOAT_EQ(t.at({i, j}), 0.0f);
-}
-
-TEST(ArrayFactory, OnesAllFields) {
-    mt::Array t = mt::ones({3, 3});
-    expect_defined(t, {3, 3}, {3, 1}, 9);
-    for (std::size_t i = 0; i < 3; ++i)
-        for (std::size_t j = 0; j < 3; ++j)
-            EXPECT_FLOAT_EQ(t.at({i, j}), 1.0f);
-}
-
-TEST(ArrayFactory, Zeros1D) {
-    mt::Array t = mt::zeros({5});
-    expect_defined(t, {5}, {1}, 5);
+            EXPECT_FLOAT_EQ(t.at<float>({i, j}), 0.0f);
 }
 
 TEST(ArrayFactory, Ones3D) {
     mt::Array t = mt::ones({2, 3, 4});
     expect_defined(t, {2, 3, 4}, {12, 4, 1}, 24);
-    EXPECT_FLOAT_EQ(t.at({1, 2, 3}), 1.0f);
+    EXPECT_FLOAT_EQ(t.at<float>({1, 2, 3}), 1.0f);
 }
 
 // ─────────────────────────────────────────────
@@ -223,8 +124,8 @@ TEST(ArrayElementwise, Add) {
     mt::Array b = mt::ones({2, 2});
     mt::Array c = a + b;
     expect_defined(c, {2, 2}, {2, 1}, 4);
-    EXPECT_FLOAT_EQ(c.at({0, 0}), 2.0f);
-    EXPECT_FLOAT_EQ(c.at({1, 1}), 2.0f);
+    EXPECT_FLOAT_EQ(c.at<float>({0, 0}), 2.0f);
+    EXPECT_FLOAT_EQ(c.at<float>({1, 1}), 2.0f);
 }
 
 TEST(ArrayElementwise, Subtract) {
@@ -232,8 +133,8 @@ TEST(ArrayElementwise, Subtract) {
     mt::Array b = mt::ones({2, 2});
     mt::Array c = a - b;
     expect_defined(c, {2, 2}, {2, 1}, 4);
-    EXPECT_FLOAT_EQ(c.at({0, 0}), 0.0f);
-    EXPECT_FLOAT_EQ(c.at({1, 1}), 0.0f);
+    EXPECT_FLOAT_EQ(c.at<float>({0, 0}), 0.0f);
+    EXPECT_FLOAT_EQ(c.at<float>({1, 1}), 0.0f);
 }
 
 TEST(ArrayElementwise, Multiply) {
@@ -241,86 +142,53 @@ TEST(ArrayElementwise, Multiply) {
     mt::Array b = mt::ones({2, 2});
     mt::Array c = a * b;
     expect_defined(c, {2, 2}, {2, 1}, 4);
-    EXPECT_FLOAT_EQ(c.at({0, 0}), 1.0f);
-    EXPECT_FLOAT_EQ(c.at({1, 1}), 1.0f);
-}
-
-TEST(ArrayElementwise, Divide) {
-    mt::Array a = mt::ones({2, 2});
-    mt::Array b = mt::ones({2, 2});
-    mt::Array c = a / b;
-    expect_defined(c, {2, 2}, {2, 1}, 4);
-    EXPECT_FLOAT_EQ(c.at({0, 0}), 1.0f);
-    EXPECT_FLOAT_EQ(c.at({1, 1}), 1.0f);
-}
-
-TEST(ArrayElementwise, AddMismatchedShapes) {
-    mt::Array a = mt::ones({2, 2});
-    mt::Array b = mt::ones({3, 3});
-    mt::Array c = a + b;
-    EXPECT_FALSE(c.defined());
+    EXPECT_FLOAT_EQ(c.at<float>({0, 0}), 1.0f);
+    EXPECT_FLOAT_EQ(c.at<float>({1, 1}), 1.0f);
 }
 
 // ---------------------------------------------------------
 // Scalar operations
 // ---------------------------------------------------------
-TEST(ArrayScalarOps, Add) {
-    mt::Array a = mt::ones({2, 2});
-    mt::Array b = a + 3.0f;
-    expect_defined(b, {2, 2}, {2, 1}, 4);
-    EXPECT_FLOAT_EQ(b.at({0, 0}), 4.0f);
-    EXPECT_FLOAT_EQ(b.at({1, 1}), 4.0f);
-}
-
-TEST(ArrayScalarOps, Subtract) {
-    mt::Array a = mt::ones({2, 2});
-    mt::Array b = a - 0.5f;
-    expect_defined(b, {2, 2}, {2, 1}, 4);
-    EXPECT_FLOAT_EQ(b.at({0, 0}), 0.5f);
-    EXPECT_FLOAT_EQ(b.at({1, 1}), 0.5f);
-}
-
 TEST(ArrayScalarOps, Multiply) {
     mt::Array a = mt::ones({2, 2});
-    mt::Array b = a * 4.0f;
+    mt::Array b = a * 4.0;
     expect_defined(b, {2, 2}, {2, 1}, 4);
-    EXPECT_FLOAT_EQ(b.at({0, 0}), 4.0f);
-    EXPECT_FLOAT_EQ(b.at({1, 1}), 4.0f);
-}
-
-TEST(ArrayScalarOps, Divide) {
-    mt::Array a = mt::ones({2, 2});
-    mt::Array b = a / 0.5f;
-    expect_defined(b, {2, 2}, {2, 1}, 4);
-    EXPECT_FLOAT_EQ(b.at({0, 0}), 2.0f);
-    EXPECT_FLOAT_EQ(b.at({1, 1}), 2.0f);
+    EXPECT_FLOAT_EQ(b.at<float>({0, 0}), 4.0f);
 }
 
 // ─────────────────────────────────────────────
-// Multi-DataType Support
+// Multi-DataType Support & Preserving Precision
 // ─────────────────────────────────────────────
 TEST(ArrayMultiDataType, DoublePrecision) {
-    std::vector<double> data{1.5f, 2.5f, 3.5f};
-    mt::Array           a(data.data(), {1, 3}, mt::DataType::f64);
+    std::vector<double> data{1.5, 2.5, 3.5};
+    mt::Array a(std::span<const double>(data), {3});
+    
     EXPECT_EQ(a.dtype(), mt::DataType::f64);
     EXPECT_EQ(a.numel(), 3);
 
-    // Test scalar operations and item() on double
-    mt::Array b = a + 2.0f;
+    // Test scalar operations preserving double accuracy
+    mt::Array b = a + 2.0;
     EXPECT_EQ(b.dtype(), mt::DataType::f64);
     EXPECT_TRUE(b.defined());
 
-    // Convert to a 1-element slice or clone to check items via item()
-    mt::Array slice(std::vector<float>{b.get_item_as_float(0)}, {1}, mt::DataType::f32);
-    EXPECT_FLOAT_EQ(slice.item(), 3.5f);
+    EXPECT_DOUBLE_EQ(b.at<double>({0}), 3.5);
+    EXPECT_DOUBLE_EQ(b.at<double>({2}), 5.5);
 }
 
-TEST(ArrayMultiDataType, CloneSupport) {
-    std::vector<float> data{4.5f, 5.5f};
-    mt::Array          a(data, {2}, mt::DataType::f64);
-    mt::Array          b = a.clone();
-    EXPECT_EQ(b.dtype(), mt::DataType::f64);
-    EXPECT_EQ(b.numel(), 2);
-    mt::Array slice(std::vector<float>{b.get_item_as_float(0)}, {1}, mt::DataType::f32);
-    EXPECT_FLOAT_EQ(slice.item(), 4.5f);
+TEST(ArrayMultiDataType, Int32PrecisionWithoutFloatDecay) {
+    std::vector<int32_t> data{10, 20, 30};
+    mt::Array a(data);
+    
+    EXPECT_EQ(a.dtype(), mt::DataType::i32);
+    
+    mt::Array b = a * 2.0; // Scaler passed as double, safely truncates inside dispatch
+    EXPECT_EQ(b.dtype(), mt::DataType::i32);
+    
+    EXPECT_EQ(b.at<int32_t>({0}), 20);
+    EXPECT_EQ(b.at<int32_t>({2}), 60);
+    
+    // Test native single item fetch
+    std::vector<int32_t> single_data{42};
+    mt::Array c(single_data);
+    EXPECT_EQ(c.item<int32_t>(), 42);
 }

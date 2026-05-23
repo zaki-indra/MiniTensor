@@ -8,11 +8,13 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <initializer_list>
 #include <iostream>
 #include <memory>
 #include <optional>
 #include <span>
+#include <stdexcept>
 #include <vector>
 
 namespace mt
@@ -27,6 +29,11 @@ enum class DataType {
     f64,
 };
 
+enum class DeviceType {
+    cpu,
+    cuda,
+};
+
 // ---------------------------------------------------------
 // DataType Type Traits
 // ---------------------------------------------------------
@@ -37,17 +44,14 @@ template <>
 struct DataTypeToType<DataType::i32> {
     using type = int32_t;
 };
-
 template <>
 struct DataTypeToType<DataType::i64> {
     using type = int64_t;
 };
-
 template <>
 struct DataTypeToType<DataType::f32> {
     using type = float;
 };
-
 template <>
 struct DataTypeToType<DataType::f64> {
     using type = double;
@@ -60,10 +64,21 @@ template <typename T>
 struct TypeToDataType;
 
 template <>
+struct TypeToDataType<int> {
+    static constexpr DataType value = DataType::i32;
+};
+template <>
+struct TypeToDataType<long> {
+    static constexpr DataType value = sizeof(long) == 8 ? DataType::i64 : DataType::i32;
+};
+template <>
+struct TypeToDataType<long long> {
+    static constexpr DataType value = DataType::i64;
+};
+template <>
 struct TypeToDataType<float> {
     static constexpr DataType value = DataType::f32;
 };
-
 template <>
 struct TypeToDataType<double> {
     static constexpr DataType value = DataType::f64;
@@ -83,15 +98,7 @@ constexpr std::size_t element_size(DataType dtype) noexcept {
     return 0;
 }
 
-enum class DeviceType {
-    cpu,
-    cuda,
-};
-
 using Shape = std::vector<std::size_t>;
-
-template <class T>
-concept Index = std::convertible_to<T, std::size_t>;
 
 // ---------------------------------------------------------
 // Forward Declarations
@@ -107,11 +114,13 @@ class Array {
     // Metadata
     // ---------------------------------------------------------
     bool       defined_ = false;
+    bool       is_view_ = false;
     size_t     numel_   = 0;
     Shape      shape_;
     Shape      strides_;
-    DataType   dtype_  = DataType::f32;
-    DeviceType device_ = DeviceType::cpu;
+    Shape      offsets_;
+    DataType   dtype_;
+    DeviceType device_;
 
     // ---------------------------------------------------------
     // Data Storage
@@ -125,13 +134,14 @@ class Array {
     static std::size_t shape_product(const Shape& s) noexcept;
     static bool        shapes_equal(const Shape& a, const Shape& b) noexcept;
 
-    // Broadcasting: computes the output shape and returns per-dim broadcast
-    // factors for both operands. Throws std::invalid_argument if shapes are
-    // not broadcast-compatible.
+    // Broadcasting
     static Shape broadcast_shapes(const Shape& a, const Shape& b);
     Array        broadcast_to(const Shape& target_shape) const;
 
-    void set_item_from_float(std::size_t index, float value);
+    // Bridge functions to manage incomplete Storage type
+    void        allocate_storage();
+    void*       raw_data() noexcept;
+    const void* raw_data() const noexcept;
 
   public:
     // ---------------------------------------------------------
@@ -140,10 +150,25 @@ class Array {
     Array() noexcept;
     Array(const Array& other);
     Array(Array&& other) noexcept;
-    explicit Array(Shape shape);
-    explicit Array(std::vector<float> data);
-    Array(std::vector<float> data, Shape shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
-    Array(const void* data, Shape shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
+
+    // Internal generic constructor
+    Array(Shape shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
+    Array(const void* data, Shape shape, DataType dtype, DeviceType device = DeviceType::cpu);
+
+    // Type-Safe Templated Constructors
+    template <typename T>
+    Array(std::span<const T> data, Shape shape, DeviceType device = DeviceType::cpu)
+        : shape_(std::move(shape)), dtype_(TypeToDataType<T>::value), device_(device), defined_(true) {
+        numel_ = shape_product(shape_);
+        compute_strides();
+        allocate_storage();
+        std::memcpy(raw_data(), data.data(), numel_ * sizeof(T));
+    }
+
+    template <typename T>
+    explicit Array(const std::vector<T>& data, DeviceType device = DeviceType::cpu)
+        : Array(std::span<const T>(data), {data.size()}, device) {
+    }
 
     // ---------------------------------------------------------
     // Metadata Getter
@@ -157,17 +182,54 @@ class Array {
     [[nodiscard]] DeviceType   device() const noexcept;
 
     // ---------------------------------------------------------
-    // Raw Data Pointer
+    // Type-Safe Indexing & Accessors
     // ---------------------------------------------------------
-    [[nodiscard]] float*       data() noexcept;
-    [[nodiscard]] const float* data() const noexcept;
-    [[nodiscard]] float        get_item_as_float(std::size_t index) const;
+    template <typename T>
+    [[nodiscard]] T* data() noexcept {
+        if (dtype_ != TypeToDataType<T>::value)
+            throw std::runtime_error("Type mismatch in data()");
+        return static_cast<T*>(raw_data());
+    }
 
-    // ---------------------------------------------------------
-    // Indexing
-    // ---------------------------------------------------------
-    [[nodiscard]] float&       at(std::initializer_list<std::size_t> indices);
-    [[nodiscard]] const float& at(std::initializer_list<std::size_t> indices) const;
+    template <typename T>
+    [[nodiscard]] const T* data() const noexcept {
+        if (dtype_ != TypeToDataType<T>::value)
+            throw std::runtime_error("Type mismatch in data()");
+        return static_cast<const T*>(raw_data());
+    }
+
+    template <typename T>
+    [[nodiscard]] T& at(std::initializer_list<std::size_t> indices) {
+        if (dtype_ != TypeToDataType<T>::value)
+            throw std::runtime_error("Type mismatch in at()");
+        std::size_t pos = 0, i = 0;
+        for (auto idx : indices)
+            pos += idx * strides_[i++];
+        return static_cast<T*>(raw_data())[pos];
+    }
+
+    template <typename T>
+    [[nodiscard]] const T& at(std::initializer_list<std::size_t> indices) const {
+        if (dtype_ != TypeToDataType<T>::value)
+            throw std::runtime_error("Type mismatch in at()");
+        std::size_t pos = 0, i = 0;
+        for (auto idx : indices)
+            pos += idx * strides_[i++];
+        return static_cast<const T*>(raw_data())[pos];
+    }
+
+    template <typename T>
+    [[nodiscard]] T item() const {
+        if (!defined())
+            throw std::runtime_error("Cannot call item() on undefined Array.");
+        if (numel() != 1)
+            throw std::runtime_error("item() is only valid for 1-element arrays.");
+        if (dtype_ != TypeToDataType<T>::value)
+            throw std::runtime_error("Type mismatch in item()");
+        return static_cast<const T*>(raw_data())[0];
+    }
+
+    [[nodiscard]] Array clone() const;
 
     // ---------------------------------------------------------
     // Static Initializers
@@ -179,134 +241,44 @@ class Array {
     [[nodiscard]] static Array randn(const Shape& shape, DataType dtype = DataType::f32,
                                      DeviceType device = DeviceType::cpu);
     [[nodiscard]] static Array empty(const Shape& shape);
-    [[nodiscard]] static Array full(const Shape& shape, float fill_value);
-    [[nodiscard]] static Array eye(std::size_t n);
-    [[nodiscard]] static Array arange(float start, float stop, float step = 1.0f);
-    [[nodiscard]] static Array linspace(float start, float stop, std::size_t num);
-
-    // ---------------------------------------------------------
-    // Array utilities
-    // ---------------------------------------------------------
-    [[nodiscard]] float item() const;
-    [[nodiscard]] Array clone() const;
+    [[nodiscard]] static Array full(const Shape& shape, double fill_value);
 
     // ---------------------------------------------------------
     // Array Manipulation
     // ---------------------------------------------------------
     [[nodiscard]] Array reshape(const Shape& new_shape) const;
     [[nodiscard]] Array flatten(std::size_t start_dim = 0, std::size_t end_dim = static_cast<std::size_t>(-1)) const;
-    [[nodiscard]] Array transpose(std::size_t dim0, std::size_t dim1) const;
-    [[nodiscard]] Array unsqueeze(std::size_t dim) const;
-    [[nodiscard]] Array squeeze(std::optional<std::size_t> dim = std::nullopt) const;
 
     // ---------------------------------------------------------
-    // Element-wise operations (broadcasting supported)
+    // Element-wise operations
     // ---------------------------------------------------------
     [[nodiscard]] Array operator+(const Array& other) const;
     [[nodiscard]] Array operator-(const Array& other) const;
     [[nodiscard]] Array operator*(const Array& other) const;
-    [[nodiscard]] Array operator/(const Array& other) const;
-    [[nodiscard]] Array operator-() const;
 
     // ---------------------------------------------------------
     // Scalar operations
     // ---------------------------------------------------------
-    [[nodiscard]] Array operator+(float scalar) const;
-    [[nodiscard]] Array operator-(float scalar) const;
-    [[nodiscard]] Array operator*(float scalar) const;
-    [[nodiscard]] Array operator/(float scalar) const;
-
-    // ---------------------------------------------------------
-    // In-place operations
-    // ---------------------------------------------------------
-    Array& operator+=(const Array& other);
-    Array& operator-=(const Array& other);
-    Array& operator*=(const Array& other);
-    Array& operator/=(const Array& other);
-    Array& operator+=(float scalar);
-    Array& operator-=(float scalar);
-    Array& operator*=(float scalar);
-    Array& operator/=(float scalar);
-    Array& fill_(float value);
-
-    // ---------------------------------------------------------
-    // Comparison operators (return float 0.0 / 1.0)
-    // ---------------------------------------------------------
-    [[nodiscard]] Array operator==(const Array& other) const;
-    [[nodiscard]] Array operator!=(const Array& other) const;
-    [[nodiscard]] Array operator<(const Array& other) const;
-    [[nodiscard]] Array operator<=(const Array& other) const;
-    [[nodiscard]] Array operator>(const Array& other) const;
-    [[nodiscard]] Array operator>=(const Array& other) const;
-
-    [[nodiscard]] Array matmul(const Array& other) const;
-
-    // ---------------------------------------------------------
-    // Unary math
-    // ---------------------------------------------------------
-    [[nodiscard]] Array relu() const;
-    [[nodiscard]] Array sigmoid() const;
-    [[nodiscard]] Array tanh() const;
-    [[nodiscard]] Array exp() const;
-    [[nodiscard]] Array log() const;
-    [[nodiscard]] Array abs() const;
-    [[nodiscard]] Array sqrt() const;
-    [[nodiscard]] Array pow(float exponent) const;
-    [[nodiscard]] Array clip(float min, float max) const;
-
-    // ---------------------------------------------------------
-    // Reductions
-    // ---------------------------------------------------------
-    [[nodiscard]] Array sum(std::optional<std::size_t> dim = std::nullopt, bool keepdim = false) const;
-    [[nodiscard]] Array mean(std::optional<std::size_t> dim = std::nullopt, bool keepdim = false) const;
-    [[nodiscard]] Array max(std::optional<std::size_t> dim = std::nullopt, bool keepdim = false) const;
-    [[nodiscard]] Array min(std::optional<std::size_t> dim = std::nullopt, bool keepdim = false) const;
-    [[nodiscard]] Array var(std::optional<std::size_t> dim = std::nullopt, bool keepdim = false) const;
-    [[nodiscard]] Array std(std::optional<std::size_t> dim = std::nullopt, bool keepdim = false) const;
-    [[nodiscard]] Array norm(std::optional<std::size_t> dim = std::nullopt, bool keepdim = false) const;
-    [[nodiscard]] Array cumsum(std::size_t dim) const;
-    [[nodiscard]] Array argmax(std::size_t dim) const;
-    [[nodiscard]] Array argmin(std::size_t dim) const;
-    [[nodiscard]] Array all(std::optional<std::size_t> dim = std::nullopt) const;
-    [[nodiscard]] Array any(std::optional<std::size_t> dim = std::nullopt) const;
-
-    // ---------------------------------------------------------
-    // Activations
-    // ---------------------------------------------------------
-    [[nodiscard]] Array softmax(std::size_t dim) const;
-    [[nodiscard]] Array log_softmax(std::size_t dim) const;
+    [[nodiscard]] Array operator+(double scalar) const;
+    [[nodiscard]] Array operator-(double scalar) const;
+    [[nodiscard]] Array operator*(double scalar) const;
+    [[nodiscard]] Array operator/(double scalar) const;
 };
 
 // Convenience free functions
 [[nodiscard]] Array zeros(const Shape& shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
 [[nodiscard]] Array ones(const Shape& shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
 [[nodiscard]] Array randn(const Shape& shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
-[[nodiscard]] Array empty(const Shape& shape);
-[[nodiscard]] Array full(const Shape& shape, float fill_value);
-[[nodiscard]] Array eye(std::size_t n);
-[[nodiscard]] Array arange(float start, float stop, float step = 1.0f);
-[[nodiscard]] Array linspace(float start, float stop, std::size_t num);
-
-[[nodiscard]] Array reshape(const Array& input, const Shape& shape);
-
-[[nodiscard]] Array cat(std::span<const Array> arrays, std::size_t dim = 0);
-[[nodiscard]] Array stack(std::span<const Array> arrays, std::size_t dim = 0);
-[[nodiscard]] float dot(const Array& a, const Array& b);
 
 // Scalar-to-Array commutative operations
-[[nodiscard]] inline Array operator+(float scalar, const Array& arr) {
+[[nodiscard]] inline Array operator+(double scalar, const Array& arr) {
     return arr + scalar;
 }
-[[nodiscard]] inline Array operator-(float scalar, const Array& arr) {
-    return (arr * -1.0f) + scalar;
-}
-[[nodiscard]] inline Array operator*(float scalar, const Array& arr) {
+[[nodiscard]] inline Array operator*(double scalar, const Array& arr) {
     return arr * scalar;
 }
-[[nodiscard]] inline Array operator/(float scalar, const Array& arr) {
-    return arr.pow(-1.0f) * scalar;
+[[nodiscard]] inline Array operator-(double scalar, const Array& arr) {
+    return (arr * -1.0) + scalar;
 }
 
-// Printing stream support
-std::ostream& operator<<(std::ostream& os, const Array& tensor);
 } // namespace mt
