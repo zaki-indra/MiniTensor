@@ -163,7 +163,7 @@ class Array {
     // Type-Safe Templated Constructors
     template <typename T>
     Array(std::span<const T> data, Shape shape, DeviceType device = DeviceType::cpu)
-        : shape_(std::move(shape)), dtype_(TypeToDataType<T>::value), device_(device), defined_(true) {
+        : defined_(true), shape_(std::move(shape)), dtype_(TypeToDataType<T>::value), device_(device) {
         numel_ = shape_product(shape_);
         compute_strides();
         allocate_storage();
@@ -190,14 +190,14 @@ class Array {
     // Type-Safe Indexing & Accessors
     // ---------------------------------------------------------
     template <typename T>
-    [[nodiscard]] T* data() noexcept {
+    [[nodiscard]] T* data() {
         if (dtype_ != TypeToDataType<T>::value)
             throw std::runtime_error("Type mismatch in data()");
         return static_cast<T*>(raw_data());
     }
 
     template <typename T>
-    [[nodiscard]] const T* data() const noexcept {
+    [[nodiscard]] const T* data() const {
         if (dtype_ != TypeToDataType<T>::value)
             throw std::runtime_error("Type mismatch in data()");
         return static_cast<const T*>(raw_data());
@@ -207,9 +207,14 @@ class Array {
     [[nodiscard]] T& at(std::initializer_list<std::size_t> indices) {
         if (dtype_ != TypeToDataType<T>::value)
             throw std::runtime_error("Type mismatch in at()");
+        if (indices.size() != shape_.size())
+            throw std::out_of_range("Dimension mismatch in at()");
         std::size_t pos = 0, i = 0;
-        for (auto idx : indices)
+        for (auto idx : indices) {
+            if (idx >= shape_[i])
+                throw std::out_of_range("Index out of bounds in at()");
             pos += idx * strides_[i++];
+        }
         return static_cast<T*>(raw_data())[pos];
     }
 
@@ -217,9 +222,14 @@ class Array {
     [[nodiscard]] const T& at(std::initializer_list<std::size_t> indices) const {
         if (dtype_ != TypeToDataType<T>::value)
             throw std::runtime_error("Type mismatch in at()");
+        if (indices.size() != shape_.size())
+            throw std::out_of_range("Dimension mismatch in at()");
         std::size_t pos = 0, i = 0;
-        for (auto idx : indices)
+        for (auto idx : indices) {
+            if (idx >= shape_[i])
+                throw std::out_of_range("Index out of bounds in at()");
             pos += idx * strides_[i++];
+        }
         return static_cast<const T*>(raw_data())[pos];
     }
 

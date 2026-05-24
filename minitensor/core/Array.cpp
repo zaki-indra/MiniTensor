@@ -1,5 +1,6 @@
 // minitensor/core/Array.cpp
 
+#include "Macros.hpp"
 #include "Storage.hpp"
 
 #include <cstring>
@@ -8,33 +9,6 @@
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
-
-// ---------------------------------------------------------
-// Runtime Type Dispatcher
-// ---------------------------------------------------------
-#define MT_DISPATCH_ALL_TYPES(TYPE, TYPE_NAME, ...)                                                                    \
-    [&]() {                                                                                                            \
-        switch (TYPE) {                                                                                                \
-        case mt::DataType::f32: {                                                                                      \
-            using TYPE_NAME = float;                                                                                   \
-            return __VA_ARGS__();                                                                                      \
-        }                                                                                                              \
-        case mt::DataType::f64: {                                                                                      \
-            using TYPE_NAME = double;                                                                                  \
-            return __VA_ARGS__();                                                                                      \
-        }                                                                                                              \
-        case mt::DataType::i32: {                                                                                      \
-            using TYPE_NAME = int32_t;                                                                                 \
-            return __VA_ARGS__();                                                                                      \
-        }                                                                                                              \
-        case mt::DataType::i64: {                                                                                      \
-            using TYPE_NAME = int64_t;                                                                                 \
-            return __VA_ARGS__();                                                                                      \
-        }                                                                                                              \
-        default:                                                                                                       \
-            throw std::runtime_error("Unsupported DataType in MT_DISPATCH_ALL_TYPES");                                 \
-        }                                                                                                              \
-    }()
 
 namespace mt
 {
@@ -52,32 +26,6 @@ void* Array::raw_data() noexcept {
 
 const void* Array::raw_data() const noexcept {
     return data_ ? data_->data() : nullptr;
-}
-
-std::size_t Array::shape_product(const Shape& s) noexcept {
-    std::size_t res = 1;
-    for (auto dim : s)
-        res *= dim;
-    return res;
-}
-
-bool Array::shapes_equal(const Shape& a, const Shape& b) noexcept {
-    if (a.size() != b.size())
-        return false;
-    for (std::size_t i = 0; i < a.size(); ++i) {
-        if (a[i] != b[i])
-            return false;
-    }
-    return true;
-}
-
-void Array::compute_strides() {
-    strides_.resize(shape_.size());
-    std::size_t stride = 1;
-    for (int i = static_cast<int>(shape_.size()) - 1; i >= 0; --i) {
-        strides_[i] = stride;
-        stride *= shape_[i];
-    }
 }
 
 // ---------------------------------------------------------
@@ -156,14 +104,14 @@ Array& Array::operator=(Array&& other) noexcept {
 }
 
 Array::Array(Shape shape, DataType dtype, DeviceType device)
-    : shape_(std::move(shape)), dtype_(dtype), device_(device), defined_(true) {
+    : defined_(true), shape_(std::move(shape)), dtype_(dtype), device_(device) {
     numel_ = shape_product(shape_);
     compute_strides();
     allocate_storage();
 }
 
 Array::Array(const void* data, Shape shape, DataType dtype, DeviceType device)
-    : shape_(std::move(shape)), dtype_(dtype), device_(device), defined_(true) {
+    : defined_(true), shape_(std::move(shape)), dtype_(dtype), device_(device) {
     numel_ = shape_product(shape_);
     compute_strides();
     allocate_storage();
@@ -219,6 +167,20 @@ Array Array::cast(DataType new_dtype) const {
         });
     });
     return casted;
+}
+
+Array Array::to(DeviceType target_device) const {
+    if (!defined())
+        return Array();
+    if (this->device() == target_device) {
+        return *this;
+    }
+    if (target_device == DeviceType::cuda) {
+        throw std::runtime_error("CUDA device is not supported on this platform.");
+    }
+    Array copied(shape_, dtype_, target_device);
+    std::memcpy(copied.raw_data(), this->raw_data(), numel_ * element_size(dtype_));
+    return copied;
 }
 
 // ---------------------------------------------------------
@@ -379,6 +341,213 @@ Array Array::operator/(double scalar) const {
         T        s     = static_cast<T>(scalar);
         for (std::size_t i = 0; i < this->numel(); ++i)
             r_ptr[i] = a_ptr[i] / s;
+    });
+    return r;
+}
+
+Array Array::reshape(const Shape& new_shape) const {
+    if (!defined())
+        throw std::runtime_error("Cannot reshape undefined Array.");
+
+    Shape       target_shape  = new_shape;
+    std::size_t neg_one_idx   = static_cast<std::size_t>(-1);
+    std::size_t neg_one_count = 0;
+    std::size_t product       = 1;
+
+    for (std::size_t i = 0; i < target_shape.size(); ++i) {
+        if (target_shape[i] == static_cast<std::size_t>(-1)) {
+            neg_one_idx = i;
+            neg_one_count++;
+        } else {
+            product *= target_shape[i];
+        }
+    }
+
+    if (neg_one_count > 1) {
+        throw std::runtime_error("Only one dimension can be -1 in reshape.");
+    }
+
+    if (neg_one_count == 1) {
+        if (product == 0 || numel_ % product != 0) {
+            throw std::runtime_error("Invalid shape for reshape with -1.");
+        }
+        target_shape[neg_one_idx] = numel_ / product;
+        product                   = numel_;
+    }
+
+    if (product != numel_) {
+        throw std::runtime_error("Shape mismatch in reshape: number of elements must remain the same.");
+    }
+
+    // Create a new Array sharing the same storage
+    Array reshaped(*this);
+    reshaped.shape_ = target_shape;
+    reshaped.compute_strides();
+    return reshaped;
+}
+
+Array Array::flatten(std::size_t start_dim, std::size_t end_dim) const {
+    if (!defined())
+        throw std::runtime_error("Cannot flatten undefined Array.");
+
+    std::size_t nd = ndim();
+    if (nd == 0) {
+        return reshape({1});
+    }
+
+    if (end_dim == static_cast<std::size_t>(-1)) {
+        end_dim = nd - 1;
+    }
+
+    if (start_dim > end_dim || end_dim >= nd) {
+        throw std::runtime_error("Invalid dimensions for flatten.");
+    }
+
+    Shape new_shape;
+    for (std::size_t i = 0; i < start_dim; ++i) {
+        new_shape.push_back(shape_[i]);
+    }
+
+    std::size_t flattened_dim = 1;
+    for (std::size_t i = start_dim; i <= end_dim; ++i) {
+        flattened_dim *= shape_[i];
+    }
+    new_shape.push_back(flattened_dim);
+
+    for (std::size_t i = end_dim + 1; i < nd; ++i) {
+        new_shape.push_back(shape_[i]);
+    }
+
+    return reshape(new_shape);
+}
+
+
+// ---------------------------------------------------------
+// Unary Mathematical Functions
+// ---------------------------------------------------------
+
+Array sin(const Array& arr) {
+    if (!arr.defined())
+        return Array();
+    Array r(arr.shape(), arr.dtype(), arr.device());
+    MT_DISPATCH_ALL_TYPES(arr.dtype(), T, [&]() {
+        const T* src = arr.data<T>();
+        T*       dst = r.data<T>();
+        for (std::size_t i = 0; i < arr.numel(); ++i) {
+            dst[i] = static_cast<T>(std::sin(static_cast<double>(src[i])));
+        }
+    });
+    return r;
+}
+
+Array cos(const Array& arr) {
+    if (!arr.defined())
+        return Array();
+    Array r(arr.shape(), arr.dtype(), arr.device());
+    MT_DISPATCH_ALL_TYPES(arr.dtype(), T, [&]() {
+        const T* src = arr.data<T>();
+        T*       dst = r.data<T>();
+        for (std::size_t i = 0; i < arr.numel(); ++i) {
+            dst[i] = static_cast<T>(std::cos(static_cast<double>(src[i])));
+        }
+    });
+    return r;
+}
+
+Array tan(const Array& arr) {
+    if (!arr.defined())
+        return Array();
+    Array r(arr.shape(), arr.dtype(), arr.device());
+    MT_DISPATCH_ALL_TYPES(arr.dtype(), T, [&]() {
+        const T* src = arr.data<T>();
+        T*       dst = r.data<T>();
+        for (std::size_t i = 0; i < arr.numel(); ++i) {
+            dst[i] = static_cast<T>(std::tan(static_cast<double>(src[i])));
+        }
+    });
+    return r;
+}
+
+Array exp(const Array& arr) {
+    if (!arr.defined())
+        return Array();
+    Array r(arr.shape(), arr.dtype(), arr.device());
+    MT_DISPATCH_ALL_TYPES(arr.dtype(), T, [&]() {
+        const T* src = arr.data<T>();
+        T*       dst = r.data<T>();
+        for (std::size_t i = 0; i < arr.numel(); ++i) {
+            dst[i] = static_cast<T>(std::exp(static_cast<double>(src[i])));
+        }
+    });
+    return r;
+}
+
+Array log(const Array& arr) {
+    if (!arr.defined())
+        return Array();
+    Array r(arr.shape(), arr.dtype(), arr.device());
+    MT_DISPATCH_ALL_TYPES(arr.dtype(), T, [&]() {
+        const T* src = arr.data<T>();
+        T*       dst = r.data<T>();
+        for (std::size_t i = 0; i < arr.numel(); ++i) {
+            dst[i] = static_cast<T>(std::log(static_cast<double>(src[i])));
+        }
+    });
+    return r;
+}
+
+Array sqrt(const Array& arr) {
+    if (!arr.defined())
+        return Array();
+    Array r(arr.shape(), arr.dtype(), arr.device());
+    MT_DISPATCH_ALL_TYPES(arr.dtype(), T, [&]() {
+        const T* src = arr.data<T>();
+        T*       dst = r.data<T>();
+        for (std::size_t i = 0; i < arr.numel(); ++i) {
+            if constexpr (std::is_integral_v<T>) {
+                if (src[i] < 0) {
+                    throw std::runtime_error("Square root of negative integer is undefined.");
+                }
+            }
+            dst[i] = static_cast<T>(std::sqrt(static_cast<double>(src[i])));
+        }
+    });
+    return r;
+}
+
+// ---------------------------------------------------------
+// Binary Element-Wise Operations
+// ---------------------------------------------------------
+
+Array add(const Array& a, const Array& b) {
+    return a + b;
+}
+
+Array subtract(const Array& a, const Array& b) {
+    return a - b;
+}
+
+Array multiply(const Array& a, const Array& b) {
+    return a * b;
+}
+
+Array divide(const Array& a, const Array& b) {
+    if (!a.defined() || !b.defined() || a.shape() != b.shape() || a.dtype() != b.dtype() || a.device() != b.device()) {
+        return Array();
+    }
+    Array r(a.shape(), a.dtype(), a.device());
+    MT_DISPATCH_ALL_TYPES(a.dtype(), T, [&]() {
+        const T* a_ptr = a.data<T>();
+        const T* b_ptr = b.data<T>();
+        T*       r_ptr = r.data<T>();
+        for (std::size_t i = 0; i < a.numel(); ++i) {
+            if (b_ptr[i] == 0) {
+                if constexpr (std::is_integral_v<T>) {
+                    throw std::runtime_error("Division by zero in integer division.");
+                }
+            }
+            r_ptr[i] = a_ptr[i] / b_ptr[i];
+        }
     });
     return r;
 }
