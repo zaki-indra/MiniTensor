@@ -250,8 +250,9 @@ class Array {
                                     DeviceType device = DeviceType::cpu);
     [[nodiscard]] static Array randn(const Shape& shape, DataType dtype = DataType::f32,
                                      DeviceType device = DeviceType::cpu);
-    [[nodiscard]] static Array empty(const Shape& shape);
-    [[nodiscard]] static Array full(const Shape& shape, double fill_value);
+    template <typename T>
+    [[nodiscard]] static Array full(const Shape& shape, T fill_value, DataType dtype = TypeToDataType<T>::value,
+                                    DeviceType device = DeviceType::cpu);
 
     // ---------------------------------------------------------
     // Array Manipulation
@@ -279,6 +280,11 @@ class Array {
 [[nodiscard]] Array zeros(const Shape& shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
 [[nodiscard]] Array ones(const Shape& shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
 [[nodiscard]] Array randn(const Shape& shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
+template <typename T>
+[[nodiscard]] inline Array full(const Shape& shape, T fill_value, DataType dtype = TypeToDataType<T>::value,
+                                DeviceType device = DeviceType::cpu) {
+    return Array::full(shape, fill_value, dtype, device);
+}
 
 // Scalar-to-Array commutative operations
 [[nodiscard]] inline Array operator+(double scalar, const Array& arr) {
@@ -290,5 +296,21 @@ class Array {
 [[nodiscard]] inline Array operator-(double scalar, const Array& arr) {
     return (arr * -1.0) + scalar;
 }
+
+// ---------------------------------------------------------
+// Mathematical functions
+// ---------------------------------------------------------
+[[nodiscard]] Array sin(const Array& arr);
+[[nodiscard]] Array cos(const Array& arr);
+[[nodiscard]] Array tan(const Array& arr);
+
+[[nodiscard]] Array exp(const Array& arr);
+[[nodiscard]] Array log(const Array& arr);
+[[nodiscard]] Array sqrt(const Array& arr);
+
+[[nodiscard]] Array add(const Array& a, const Array& b);
+[[nodiscard]] Array subtract(const Array& a, const Array& b);
+[[nodiscard]] Array multiply(const Array& a, const Array& b);
+[[nodiscard]] Array divide(const Array& a, const Array& b);
 
 } // namespace mt

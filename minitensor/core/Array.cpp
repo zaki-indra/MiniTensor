@@ -257,6 +257,16 @@ Array Array::randn(const Shape& shape, DataType dtype, DeviceType device) {
     return r;
 }
 
+template <typename T>
+Array Array::full(const Shape& shape, T fill_value, DataType dtype, DeviceType device) {
+    Array r(shape, dtype, device);
+    MT_DISPATCH_ALL_TYPES(dtype, U, [&]() {
+        U* ptr = static_cast<U*>(r.raw_data());
+        std::fill(ptr, ptr + r.numel(), static_cast<U>(fill_value));
+    });
+    return r;
+}
+
 Array zeros(const Shape& shape, DataType dtype, DeviceType device) {
     return Array::zeros(shape, dtype, device);
 }
@@ -372,5 +382,15 @@ Array Array::operator/(double scalar) const {
     });
     return r;
 }
+
+// ---------------------------------------------------------
+// Explicit Template Instantiations
+// ---------------------------------------------------------
+
+template Array Array::full<float>(const Shape& shape, float fill_value, DataType dtype, DeviceType device);
+template Array Array::full<double>(const Shape& shape, double fill_value, DataType dtype, DeviceType device);
+template Array Array::full<int>(const Shape& shape, int fill_value, DataType dtype, DeviceType device);
+template Array Array::full<long>(const Shape& shape, long fill_value, DataType dtype, DeviceType device);
+template Array Array::full<long long>(const Shape& shape, long long fill_value, DataType dtype, DeviceType device);
 
 } // namespace mt

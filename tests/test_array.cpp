@@ -116,6 +116,13 @@ TEST(ArrayFactory, Ones3D) {
     EXPECT_FLOAT_EQ(t.at<float>({1, 2, 3}), 1.0f);
 }
 
+TEST(ArrayFactory, FullWithInt) {
+    mt::Array t = mt::full({2, 2}, 7);
+    expect_defined(t, {2, 2}, {2, 1}, 4, mt::DataType::i32);
+    EXPECT_EQ(t.at<int32_t>({0, 0}), 7);
+    EXPECT_EQ(t.at<int32_t>({1, 1}), 7);
+}
+
 // ─────────────────────────────────────────────
 // Element-wise operations
 // ─────────────────────────────────────────────
