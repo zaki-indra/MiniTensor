@@ -99,11 +99,11 @@ TEST(ArrayShapeTest, AtMethodThrowsOnOutOfBoundsIndex) {
     EXPECT_NO_THROW(a.at<float>({1, 2}));
 
     // Dimension size mismatch
-    EXPECT_THROW(a.at<float>({0}), std::out_of_range);
-    EXPECT_THROW(a.at<float>({0, 0, 0}), std::out_of_range);
+    EXPECT_THROW(a.at<float>({0}), mt::ShapeError);
+    EXPECT_THROW(a.at<float>({0, 0, 0}), mt::ShapeError);
 
     // Index out of bounds
-    EXPECT_THROW(a.at<float>({2, 0}), std::out_of_range);
-    EXPECT_THROW(a.at<float>({0, 3}), std::out_of_range);
+    EXPECT_THROW(a.at<float>({2, 0}), mt::IndexError);
+    EXPECT_THROW(a.at<float>({0, 3}), mt::IndexError);
 #pragma GCC diagnostic pop
 }

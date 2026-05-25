@@ -1,4 +1,5 @@
 // minitensor/core/Allocator.hpp
+#pragma once
 
 #include <minitensor/minitensor.hpp>
 

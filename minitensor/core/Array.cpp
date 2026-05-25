@@ -176,7 +176,7 @@ Array Array::to(DeviceType target_device) const {
         return *this;
     }
     if (target_device == DeviceType::cuda) {
-        throw std::runtime_error("CUDA device is not supported on this platform.");
+        throw DeviceError("CUDA device is not supported on this platform.");
     }
     Array copied(shape_, dtype_, target_device);
     std::memcpy(copied.raw_data(), this->raw_data(), numel_ * element_size(dtype_));
@@ -243,10 +243,7 @@ Array randn(const Shape& shape, DataType dtype, DeviceType device) {
 // Element-wise operations
 // ---------------------------------------------------------
 Array Array::operator+(const Array& other) const {
-    if (!defined() || !other.defined() || !shapes_equal(this->shape(), other.shape()) ||
-        this->dtype() != other.dtype() || this->device() != other.device()) {
-        return Array();
-    }
+    MT_CHECK_BINARY_ELEMENTWISE(*this, other);
     Array r(this->shape(), this->dtype(), this->device());
     MT_DISPATCH_ALL_TYPES(this->dtype(), T, [&]() {
         const T* a_ptr = static_cast<const T*>(this->raw_data());
@@ -259,8 +256,7 @@ Array Array::operator+(const Array& other) const {
 }
 
 Array Array::operator-(const Array& other) const {
-    if (!defined() || !other.defined() || !shapes_equal(this->shape(), other.shape()) || this->dtype() != other.dtype())
-        return Array();
+    MT_CHECK_BINARY_ELEMENTWISE(*this, other);
     Array r(this->shape(), this->dtype(), this->device());
     MT_DISPATCH_ALL_TYPES(this->dtype(), T, [&]() {
         const T* a_ptr = static_cast<const T*>(this->raw_data());
@@ -273,8 +269,7 @@ Array Array::operator-(const Array& other) const {
 }
 
 Array Array::operator*(const Array& other) const {
-    if (!defined() || !other.defined() || !shapes_equal(this->shape(), other.shape()) || this->dtype() != other.dtype())
-        return Array();
+    MT_CHECK_BINARY_ELEMENTWISE(*this, other);
     Array r(this->shape(), this->dtype(), this->device());
     MT_DISPATCH_ALL_TYPES(this->dtype(), T, [&]() {
         const T* a_ptr = static_cast<const T*>(this->raw_data());
@@ -290,8 +285,7 @@ Array Array::operator*(const Array& other) const {
 // Scalar operations
 // ---------------------------------------------------------
 Array Array::operator+(double scalar) const {
-    if (!defined())
-        return Array();
+    MT_CHECK_BINARY_SCALAR(*this);
     Array r(this->shape(), this->dtype(), this->device());
     MT_DISPATCH_ALL_TYPES(this->dtype(), T, [&]() {
         const T* a_ptr = static_cast<const T*>(this->raw_data());
@@ -304,8 +298,7 @@ Array Array::operator+(double scalar) const {
 }
 
 Array Array::operator-(double scalar) const {
-    if (!defined())
-        return Array();
+    MT_CHECK_BINARY_SCALAR(*this);
     Array r(this->shape(), this->dtype(), this->device());
     MT_DISPATCH_ALL_TYPES(this->dtype(), T, [&]() {
         const T* a_ptr = static_cast<const T*>(this->raw_data());
@@ -318,8 +311,7 @@ Array Array::operator-(double scalar) const {
 }
 
 Array Array::operator*(double scalar) const {
-    if (!defined())
-        return Array();
+    MT_CHECK_BINARY_SCALAR(*this);
     Array r(this->shape(), this->dtype(), this->device());
     MT_DISPATCH_ALL_TYPES(this->dtype(), T, [&]() {
         const T* a_ptr = static_cast<const T*>(this->raw_data());
@@ -332,8 +324,7 @@ Array Array::operator*(double scalar) const {
 }
 
 Array Array::operator/(double scalar) const {
-    if (!defined())
-        return Array();
+    MT_CHECK_BINARY_SCALAR(*this);
     Array r(this->shape(), this->dtype(), this->device());
     MT_DISPATCH_ALL_TYPES(this->dtype(), T, [&]() {
         const T* a_ptr = static_cast<const T*>(this->raw_data());
@@ -346,8 +337,7 @@ Array Array::operator/(double scalar) const {
 }
 
 Array Array::reshape(const Shape& new_shape) const {
-    if (!defined())
-        throw std::runtime_error("Cannot reshape undefined Array.");
+    MT_CHECK_DEFINED(*this);
 
     Shape       target_shape  = new_shape;
     std::size_t neg_one_idx   = static_cast<std::size_t>(-1);
@@ -363,21 +353,19 @@ Array Array::reshape(const Shape& new_shape) const {
         }
     }
 
-    if (neg_one_count > 1) {
-        throw std::runtime_error("Only one dimension can be -1 in reshape.");
-    }
+    MT_CHECK(neg_one_count <= 1, mt::ShapeError, "Only one dimension can be -1 in reshape, but got " << neg_one_count);
 
     if (neg_one_count == 1) {
-        if (product == 0 || numel_ % product != 0) {
-            throw std::runtime_error("Invalid shape for reshape with -1.");
-        }
+        MT_CHECK(product > 0 && numel_ % product == 0, mt::ShapeError,
+                 "Invalid shape for reshape with -1. Total elements " << numel_
+                 << " not divisible by product of other dimensions " << product);
         target_shape[neg_one_idx] = numel_ / product;
         product                   = numel_;
     }
 
-    if (product != numel_) {
-        throw std::runtime_error("Shape mismatch in reshape: number of elements must remain the same.");
-    }
+    MT_CHECK(product == numel_, mt::ShapeError,
+             "Shape mismatch in reshape: number of elements must remain the same. Original size: "
+             << numel_ << ", new shape size: " << product);
 
     // Create a new Array sharing the same storage
     Array reshaped(*this);
@@ -387,8 +375,7 @@ Array Array::reshape(const Shape& new_shape) const {
 }
 
 Array Array::flatten(std::size_t start_dim, std::size_t end_dim) const {
-    if (!defined())
-        throw std::runtime_error("Cannot flatten undefined Array.");
+    MT_CHECK_DEFINED(*this);
 
     std::size_t nd = ndim();
     if (nd == 0) {
@@ -399,9 +386,9 @@ Array Array::flatten(std::size_t start_dim, std::size_t end_dim) const {
         end_dim = nd - 1;
     }
 
-    if (start_dim > end_dim || end_dim >= nd) {
-        throw std::runtime_error("Invalid dimensions for flatten.");
-    }
+    MT_CHECK(start_dim <= end_dim && end_dim < nd, mt::ShapeError,
+             "Invalid dimensions for flatten: start_dim (" << start_dim
+             << ") must be <= end_dim (" << end_dim << ") and end_dim must be < ndim (" << nd << ")");
 
     Shape new_shape;
     for (std::size_t i = 0; i < start_dim; ++i) {
@@ -421,14 +408,12 @@ Array Array::flatten(std::size_t start_dim, std::size_t end_dim) const {
     return reshape(new_shape);
 }
 
-
 // ---------------------------------------------------------
 // Unary Mathematical Functions
 // ---------------------------------------------------------
 
 Array sin(const Array& arr) {
-    if (!arr.defined())
-        return Array();
+    MT_CHECK_UNARY_OP(arr);
     Array r(arr.shape(), arr.dtype(), arr.device());
     MT_DISPATCH_ALL_TYPES(arr.dtype(), T, [&]() {
         const T* src = arr.data<T>();
@@ -441,8 +426,7 @@ Array sin(const Array& arr) {
 }
 
 Array cos(const Array& arr) {
-    if (!arr.defined())
-        return Array();
+    MT_CHECK_UNARY_OP(arr);
     Array r(arr.shape(), arr.dtype(), arr.device());
     MT_DISPATCH_ALL_TYPES(arr.dtype(), T, [&]() {
         const T* src = arr.data<T>();
@@ -455,8 +439,7 @@ Array cos(const Array& arr) {
 }
 
 Array tan(const Array& arr) {
-    if (!arr.defined())
-        return Array();
+    MT_CHECK_UNARY_OP(arr);
     Array r(arr.shape(), arr.dtype(), arr.device());
     MT_DISPATCH_ALL_TYPES(arr.dtype(), T, [&]() {
         const T* src = arr.data<T>();
@@ -469,8 +452,7 @@ Array tan(const Array& arr) {
 }
 
 Array exp(const Array& arr) {
-    if (!arr.defined())
-        return Array();
+    MT_CHECK_UNARY_OP(arr);
     Array r(arr.shape(), arr.dtype(), arr.device());
     MT_DISPATCH_ALL_TYPES(arr.dtype(), T, [&]() {
         const T* src = arr.data<T>();
@@ -483,8 +465,7 @@ Array exp(const Array& arr) {
 }
 
 Array log(const Array& arr) {
-    if (!arr.defined())
-        return Array();
+    MT_CHECK_UNARY_OP(arr);
     Array r(arr.shape(), arr.dtype(), arr.device());
     MT_DISPATCH_ALL_TYPES(arr.dtype(), T, [&]() {
         const T* src = arr.data<T>();
@@ -497,8 +478,7 @@ Array log(const Array& arr) {
 }
 
 Array sqrt(const Array& arr) {
-    if (!arr.defined())
-        return Array();
+    MT_CHECK_UNARY_OP(arr);
     Array r(arr.shape(), arr.dtype(), arr.device());
     MT_DISPATCH_ALL_TYPES(arr.dtype(), T, [&]() {
         const T* src = arr.data<T>();
@@ -506,7 +486,7 @@ Array sqrt(const Array& arr) {
         for (std::size_t i = 0; i < arr.numel(); ++i) {
             if constexpr (std::is_integral_v<T>) {
                 if (src[i] < 0) {
-                    throw std::runtime_error("Square root of negative integer is undefined.");
+                    MT_THROW(mt::ArithmeticError, "Square root of negative integer " << src[i] << " is undefined.");
                 }
             }
             dst[i] = static_cast<T>(std::sqrt(static_cast<double>(src[i])));
@@ -532,10 +512,9 @@ Array multiply(const Array& a, const Array& b) {
 }
 
 Array divide(const Array& a, const Array& b) {
-    if (!a.defined() || !b.defined() || a.shape() != b.shape() || a.dtype() != b.dtype() || a.device() != b.device()) {
-        return Array();
-    }
+    MT_CHECK_BINARY_ELEMENTWISE(a, b);
     Array r(a.shape(), a.dtype(), a.device());
+    bool  zero_division = false;
     MT_DISPATCH_ALL_TYPES(a.dtype(), T, [&]() {
         const T* a_ptr = a.data<T>();
         const T* b_ptr = b.data<T>();
@@ -543,12 +522,17 @@ Array divide(const Array& a, const Array& b) {
         for (std::size_t i = 0; i < a.numel(); ++i) {
             if (b_ptr[i] == 0) {
                 if constexpr (std::is_integral_v<T>) {
-                    throw std::runtime_error("Division by zero in integer division.");
+                    zero_division = true;
+                    r_ptr[i]      = 0;
+                    continue;
                 }
             }
             r_ptr[i] = a_ptr[i] / b_ptr[i];
         }
     });
+    if (zero_division) {
+        throw mt::ArithmeticError("Division by zero encountered.");
+    }
     return r;
 }
 

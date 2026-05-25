@@ -1,6 +1,12 @@
+// minitensor/core/Macros.hpp
+#pragma once
+
+#include <minitensor/minitensor.hpp>
+
 // ---------------------------------------------------------
 // Runtime Type Dispatcher
 // ---------------------------------------------------------
+
 #define MT_DISPATCH_ALL_TYPES(TYPE, TYPE_NAME, ...)                                                                    \
     [&]() {                                                                                                            \
         switch (TYPE) {                                                                                                \

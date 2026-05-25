@@ -1,4 +1,5 @@
 // minitensor/core/Storage.hpp
+#pragma once
 
 #include <minitensor/minitensor.hpp>
 
@@ -11,7 +12,7 @@ class Storage {
     DataType    dtype_  = DataType::f32;
     DeviceType  device_ = DeviceType::cpu;
 
-    int         ref_count_ = 1;
+    int ref_count_ = 1;
 
   public:
     Storage() noexcept            = delete;
@@ -24,7 +25,7 @@ class Storage {
 
     void retain() noexcept;
     void release() noexcept;
-    int ref_count() const noexcept;
+    int  ref_count() const noexcept;
 
     [[nodiscard]] void*       data() noexcept;
     [[nodiscard]] const void* data() const noexcept;

@@ -1,5 +1,4 @@
 // include/minitensor/minitensor/Core.hpp
-
 #pragma once
 
 #ifndef _MINITENSOR_HPP_
@@ -33,6 +32,36 @@ enum class DeviceType {
     cpu,
     cuda,
 };
+
+inline std::ostream& operator<<(std::ostream& os, DataType dtype) {
+    switch (dtype) {
+    case DataType::i32:
+        os << "int32";
+        break;
+    case DataType::i64:
+        os << "int64";
+        break;
+    case DataType::f32:
+        os << "float32";
+        break;
+    case DataType::f64:
+        os << "float64";
+        break;
+    }
+    return os;
+}
+
+inline std::ostream& operator<<(std::ostream& os, DeviceType device) {
+    switch (device) {
+    case DeviceType::cpu:
+        os << "CPU";
+        break;
+    case DeviceType::cuda:
+        os << "CUDA";
+        break;
+    }
+    return os;
+}
 
 // ---------------------------------------------------------
 // DataType Type Traits
@@ -99,6 +128,18 @@ constexpr std::size_t element_size(DataType dtype) noexcept {
 }
 
 using Shape = std::vector<std::size_t>;
+
+inline std::ostream& operator<<(std::ostream& os, const Shape& shape) {
+    os << "[";
+    for (std::size_t i = 0; i < shape.size(); ++i) {
+        os << shape[i];
+        if (i + 1 < shape.size()) {
+            os << ", ";
+        }
+    }
+    os << "]";
+    return os;
+}
 
 // ---------------------------------------------------------
 // Forward Declarations
@@ -191,28 +232,27 @@ class Array {
     // ---------------------------------------------------------
     template <typename T>
     [[nodiscard]] T* data() {
-        if (dtype_ != TypeToDataType<T>::value)
-            throw std::runtime_error("Type mismatch in data()");
+        MT_CHECK(dtype_ == TypeToDataType<T>::value, mt::TypeError,
+                 "Type mismatch in data(): requested C++ type does not match dynamic tensor DataType.");
         return static_cast<T*>(raw_data());
     }
 
     template <typename T>
     [[nodiscard]] const T* data() const {
-        if (dtype_ != TypeToDataType<T>::value)
-            throw std::runtime_error("Type mismatch in data()");
+        MT_CHECK(dtype_ == TypeToDataType<T>::value, mt::TypeError,
+                 "Type mismatch in data(): requested C++ type does not match dynamic tensor DataType.");
         return static_cast<const T*>(raw_data());
     }
 
     template <typename T>
     [[nodiscard]] T& at(std::initializer_list<std::size_t> indices) {
-        if (dtype_ != TypeToDataType<T>::value)
-            throw std::runtime_error("Type mismatch in at()");
-        if (indices.size() != shape_.size())
-            throw std::out_of_range("Dimension mismatch in at()");
+        MT_CHECK(dtype_ == TypeToDataType<T>::value, mt::TypeError,
+                 "Type mismatch in at(): requested C++ type does not match dynamic tensor DataType.");
+        MT_CHECK(indices.size() == shape_.size(), mt::ShapeError,
+                 "Dimension mismatch in at(): expected " << shape_.size() << " indices, got " << indices.size());
         std::size_t pos = 0, i = 0;
         for (auto idx : indices) {
-            if (idx >= shape_[i])
-                throw std::out_of_range("Index out of bounds in at()");
+            MT_CHECK_INDEX(idx, shape_[i], i);
             pos += idx * strides_[i++];
         }
         return static_cast<T*>(raw_data())[pos];
@@ -220,14 +260,13 @@ class Array {
 
     template <typename T>
     [[nodiscard]] const T& at(std::initializer_list<std::size_t> indices) const {
-        if (dtype_ != TypeToDataType<T>::value)
-            throw std::runtime_error("Type mismatch in at()");
-        if (indices.size() != shape_.size())
-            throw std::out_of_range("Dimension mismatch in at()");
+        MT_CHECK(dtype_ == TypeToDataType<T>::value, mt::TypeError,
+                 "Type mismatch in at(): requested C++ type does not match dynamic tensor DataType.");
+        MT_CHECK(indices.size() == shape_.size(), mt::ShapeError,
+                 "Dimension mismatch in at(): expected " << shape_.size() << " indices, got " << indices.size());
         std::size_t pos = 0, i = 0;
         for (auto idx : indices) {
-            if (idx >= shape_[i])
-                throw std::out_of_range("Index out of bounds in at()");
+            MT_CHECK_INDEX(idx, shape_[i], i);
             pos += idx * strides_[i++];
         }
         return static_cast<const T*>(raw_data())[pos];
@@ -235,12 +274,11 @@ class Array {
 
     template <typename T>
     [[nodiscard]] T item() const {
-        if (!defined())
-            throw std::runtime_error("Cannot call item() on undefined Array.");
-        if (numel() != 1)
-            throw std::runtime_error("item() is only valid for 1-element arrays.");
-        if (dtype_ != TypeToDataType<T>::value)
-            throw std::runtime_error("Type mismatch in item()");
+        MT_CHECK_DEFINED(*this);
+        MT_CHECK(numel() == 1, mt::ShapeError,
+                 "item() is only valid for 1-element arrays, but array has " << numel() << " elements.");
+        MT_CHECK(dtype_ == TypeToDataType<T>::value, mt::TypeError,
+                 "Type mismatch in item(): requested C++ type does not match dynamic tensor DataType.");
         return static_cast<const T*>(raw_data())[0];
     }
 
