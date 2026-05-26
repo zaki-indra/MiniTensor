@@ -10,12 +10,30 @@
 #include <iosfwd>
 #include <memory>
 #include <span>
+#include <sstream>
 #include <stdexcept>
 #include <utility>
 #include <vector>
 
 namespace mt
 {
+// ---------------------------------------------------------
+// Internal helpers (public header — kept minimal on purpose).
+// The full error-reporting machinery (MT_CHECK / MT_THROW) lives in the
+// private header minitensor/core/ErrorMacros.hpp and must not appear in
+// any public header. These helpers exist only so the public template
+// methods below can throw without dragging in macros.
+// ---------------------------------------------------------
+namespace detail
+{
+template <typename... Args>
+inline std::string format_msg(Args&&... args) {
+    std::ostringstream oss;
+    (oss << ... << std::forward<Args>(args));
+    return oss.str();
+}
+} // namespace detail
+
 // ---------------------------------------------------------
 // Basic Types
 // ---------------------------------------------------------
@@ -142,16 +160,13 @@ class Array {
     // ---------------------------------------------------------
     // Constructors & Destructors
     // ---------------------------------------------------------
-    Array() noexcept = default;
+    Array() noexcept          = default;
     Array(const Array& other) = default;
     Array(Array&& other) noexcept
-        : defined_(std::exchange(other.defined_, false)),
-          numel_(std::exchange(other.numel_, 0)),
-          shape_(std::move(other.shape_)),
-          strides_(std::move(other.strides_)),
-          dtype_(other.dtype_),
-          device_(other.device_),
-          data_(std::move(other.data_)) {}
+        : defined_(std::exchange(other.defined_, false)), numel_(std::exchange(other.numel_, 0)),
+          shape_(std::move(other.shape_)), strides_(std::move(other.strides_)), dtype_(other.dtype_),
+          device_(other.device_), data_(std::move(other.data_)) {
+    }
     ~Array() = default;
 
     // Assignment Operators
@@ -191,40 +206,57 @@ class Array {
     // ---------------------------------------------------------
     // Metadata Getter
     // ---------------------------------------------------------
-    [[nodiscard]] bool         defined() const noexcept { return defined_; }
-    [[nodiscard]] const Shape& shape() const noexcept { return shape_; }
-    [[nodiscard]] const Shape& strides() const noexcept { return strides_; }
-    [[nodiscard]] std::size_t  ndim() const noexcept { return shape_.size(); }
-    [[nodiscard]] std::size_t  numel() const noexcept { return numel_; }
-    [[nodiscard]] DataType     dtype() const noexcept { return dtype_; }
-    [[nodiscard]] DeviceType   device() const noexcept { return device_; }
+    [[nodiscard]] bool defined() const noexcept {
+        return defined_;
+    }
+    [[nodiscard]] const Shape& shape() const noexcept {
+        return shape_;
+    }
+    [[nodiscard]] const Shape& strides() const noexcept {
+        return strides_;
+    }
+    [[nodiscard]] std::size_t ndim() const noexcept {
+        return shape_.size();
+    }
+    [[nodiscard]] std::size_t numel() const noexcept {
+        return numel_;
+    }
+    [[nodiscard]] DataType dtype() const noexcept {
+        return dtype_;
+    }
+    [[nodiscard]] DeviceType device() const noexcept {
+        return device_;
+    }
 
     // ---------------------------------------------------------
     // Type-Safe Indexing & Accessors
     // ---------------------------------------------------------
     template <typename T>
     [[nodiscard]] T* data() {
-        MT_CHECK(dtype_ == TypeToDataType<T>::value, mt::TypeError,
-                 "Type mismatch in data(): requested C++ type does not match dynamic tensor DataType.");
+        if (dtype_ != TypeToDataType<T>::value)
+            throw mt::TypeError("Type mismatch in data(): requested C++ type does not match dynamic tensor DataType.");
         return static_cast<T*>(raw_data());
     }
 
     template <typename T>
     [[nodiscard]] const T* data() const {
-        MT_CHECK(dtype_ == TypeToDataType<T>::value, mt::TypeError,
-                 "Type mismatch in data(): requested C++ type does not match dynamic tensor DataType.");
+        if (dtype_ != TypeToDataType<T>::value)
+            throw mt::TypeError("Type mismatch in data(): requested C++ type does not match dynamic tensor DataType.");
         return static_cast<const T*>(raw_data());
     }
 
     template <typename T>
     [[nodiscard]] T& at(std::initializer_list<std::size_t> indices) {
-        MT_CHECK(dtype_ == TypeToDataType<T>::value, mt::TypeError,
-                 "Type mismatch in at(): requested C++ type does not match dynamic tensor DataType.");
-        MT_CHECK(indices.size() == shape_.size(), mt::ShapeError,
-                 "Dimension mismatch in at(): expected " << shape_.size() << " indices, got " << indices.size());
+        if (dtype_ != TypeToDataType<T>::value)
+            throw mt::TypeError("Type mismatch in at(): requested C++ type does not match dynamic tensor DataType.");
+        if (indices.size() != shape_.size())
+            throw mt::ShapeError(detail::format_msg("Dimension mismatch in at(): expected ", shape_.size(),
+                                                    " indices, got ", indices.size()));
         std::size_t pos = 0, i = 0;
         for (auto idx : indices) {
-            MT_CHECK_INDEX(idx, shape_[i], i);
+            if (idx >= shape_[i])
+                throw mt::IndexError(
+                  detail::format_msg("Index ", idx, " is out of bounds for dimension ", i, " with size ", shape_[i]));
             pos += idx * strides_[i++];
         }
         return static_cast<T*>(raw_data())[pos];
@@ -232,13 +264,16 @@ class Array {
 
     template <typename T>
     [[nodiscard]] const T& at(std::initializer_list<std::size_t> indices) const {
-        MT_CHECK(dtype_ == TypeToDataType<T>::value, mt::TypeError,
-                 "Type mismatch in at(): requested C++ type does not match dynamic tensor DataType.");
-        MT_CHECK(indices.size() == shape_.size(), mt::ShapeError,
-                 "Dimension mismatch in at(): expected " << shape_.size() << " indices, got " << indices.size());
+        if (dtype_ != TypeToDataType<T>::value)
+            throw mt::TypeError("Type mismatch in at(): requested C++ type does not match dynamic tensor DataType.");
+        if (indices.size() != shape_.size())
+            throw mt::ShapeError(detail::format_msg("Dimension mismatch in at(): expected ", shape_.size(),
+                                                    " indices, got ", indices.size()));
         std::size_t pos = 0, i = 0;
         for (auto idx : indices) {
-            MT_CHECK_INDEX(idx, shape_[i], i);
+            if (idx >= shape_[i])
+                throw mt::IndexError(
+                  detail::format_msg("Index ", idx, " is out of bounds for dimension ", i, " with size ", shape_[i]));
             pos += idx * strides_[i++];
         }
         return static_cast<const T*>(raw_data())[pos];
@@ -246,11 +281,13 @@ class Array {
 
     template <typename T>
     [[nodiscard]] T item() const {
-        MT_CHECK_DEFINED(*this);
-        MT_CHECK(numel() == 1, mt::ShapeError,
-                 "item() is only valid for 1-element arrays, but array has " << numel() << " elements.");
-        MT_CHECK(dtype_ == TypeToDataType<T>::value, mt::TypeError,
-                 "Type mismatch in item(): requested C++ type does not match dynamic tensor DataType.");
+        if (!defined())
+            throw mt::UndefinedError("Tensor is not defined (has no storage).");
+        if (numel() != 1)
+            throw mt::ShapeError(
+              detail::format_msg("item() is only valid for 1-element arrays, but array has ", numel(), " elements."));
+        if (dtype_ != TypeToDataType<T>::value)
+            throw mt::TypeError("Type mismatch in item(): requested C++ type does not match dynamic tensor DataType.");
         return static_cast<const T*>(raw_data())[0];
     }
 
@@ -324,6 +361,7 @@ class Array {
 [[nodiscard]] Array ones(const Shape& shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
 [[nodiscard]] Array randn(const Shape& shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
 template <typename T>
-[[nodiscard]] Array full(const Shape& shape, T fill_value, DataType dtype = TypeToDataType<T>::value, DeviceType device = DeviceType::cpu);
+[[nodiscard]] Array full(const Shape& shape, T fill_value, DataType dtype = TypeToDataType<T>::value,
+                         DeviceType device = DeviceType::cpu);
 
 } // namespace mt

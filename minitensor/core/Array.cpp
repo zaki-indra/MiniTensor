@@ -1,16 +1,17 @@
 // minitensor/core/Array.cpp
 
+#include "ErrorMacros.hpp"
 #include "Macros.hpp"
 #include "Storage.hpp"
 
 #include <cstring>
+#include <functional>
 #include <minitensor/minitensor.hpp>
+#include <numeric>
 #include <random>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
-#include <numeric>
-#include <functional>
 
 namespace mt
 {
@@ -133,15 +134,15 @@ Array Array::reshape(const Shape& new_shape) const {
 
     if (neg_one_count == 1) {
         MT_CHECK(product > 0 && numel_ % product == 0, mt::ShapeError,
-                 "Invalid shape for reshape with -1. Total elements " << numel_
-                 << " not divisible by product of other dimensions " << product);
+                 "Invalid shape for reshape with -1. Total elements "
+                   << numel_ << " not divisible by product of other dimensions " << product);
         target_shape[neg_one_idx] = numel_ / product;
         product                   = numel_;
     }
 
     MT_CHECK(product == numel_, mt::ShapeError,
              "Shape mismatch in reshape: number of elements must remain the same. Original size: "
-             << numel_ << ", new shape size: " << product);
+               << numel_ << ", new shape size: " << product);
 
     // Create a new Array sharing the same storage
     Array reshaped(*this);
@@ -163,8 +164,8 @@ Array Array::flatten(std::size_t start_dim, std::size_t end_dim) const {
     }
 
     MT_CHECK(start_dim <= end_dim && end_dim < nd, mt::ShapeError,
-             "Invalid dimensions for flatten: start_dim (" << start_dim
-             << ") must be <= end_dim (" << end_dim << ") and end_dim must be < ndim (" << nd << ")");
+             "Invalid dimensions for flatten: start_dim (" << start_dim << ") must be <= end_dim (" << end_dim
+                                                           << ") and end_dim must be < ndim (" << nd << ")");
 
     Shape new_shape;
     for (std::size_t i = 0; i < start_dim; ++i) {
@@ -187,7 +188,8 @@ Array Array::flatten(std::size_t start_dim, std::size_t end_dim) const {
 // ---------------------------------------------------------
 // Helper Templates for Operations
 // ---------------------------------------------------------
-namespace {
+namespace
+{
 
 template <class F>
 Array elementwise_unary(const Array& a, F&& fn) {
@@ -210,7 +212,8 @@ Array elementwise_binary(const Array& a, const Array& b, Op&& op) {
         const T* ap = a.data<T>();
         const T* bp = b.data<T>();
         T*       rp = r.data<T>();
-        for (std::size_t i = 0; i < a.numel(); ++i) rp[i] = op(ap[i], bp[i]);
+        for (std::size_t i = 0; i < a.numel(); ++i)
+            rp[i] = op(ap[i], bp[i]);
     });
     return r;
 }
@@ -223,7 +226,8 @@ Array elementwise_scalar(const Array& a, double s, Op&& op) {
         const T* ap = a.data<T>();
         T*       rp = r.data<T>();
         T        sv = static_cast<T>(s);
-        for (std::size_t i = 0; i < a.numel(); ++i) rp[i] = op(ap[i], sv);
+        for (std::size_t i = 0; i < a.numel(); ++i)
+            rp[i] = op(ap[i], sv);
     });
     return r;
 }
@@ -243,10 +247,16 @@ Array filled(const Shape& shape, T v, DataType dtype, DeviceType device) {
 // ---------------------------------------------------------
 // Initializers
 // ---------------------------------------------------------
-Array Array::zeros(const Shape& s, DataType d, DeviceType dev) { return filled(s, 0, d, dev); }
-Array Array::ones (const Shape& s, DataType d, DeviceType dev) { return filled(s, 1, d, dev); }
+Array Array::zeros(const Shape& s, DataType d, DeviceType dev) {
+    return filled(s, 0, d, dev);
+}
+Array Array::ones(const Shape& s, DataType d, DeviceType dev) {
+    return filled(s, 1, d, dev);
+}
 template <class T>
-Array Array::full (const Shape& s, T v, DataType d, DeviceType dev) { return filled(s, v, d, dev); }
+Array Array::full(const Shape& s, T v, DataType d, DeviceType dev) {
+    return filled(s, v, d, dev);
+}
 
 Array Array::randn(const Shape& shape, DataType dtype, DeviceType device) {
     Array              r(shape, dtype, device);
@@ -290,11 +300,21 @@ template Array full<long long>(const Shape& shape, long long fill_value, DataTyp
 // ---------------------------------------------------------
 // Mathematical functions
 // ---------------------------------------------------------
-Array sin (const Array& a) { return elementwise_unary(a, [](double x){ return std::sin (x); }); }
-Array cos (const Array& a) { return elementwise_unary(a, [](double x){ return std::cos (x); }); }
-Array tan (const Array& a) { return elementwise_unary(a, [](double x){ return std::tan (x); }); }
-Array exp (const Array& a) { return elementwise_unary(a, [](double x){ return std::exp (x); }); }
-Array log (const Array& a) { return elementwise_unary(a, [](double x){ return std::log (x); }); }
+Array sin(const Array& a) {
+    return elementwise_unary(a, [](double x) { return std::sin(x); });
+}
+Array cos(const Array& a) {
+    return elementwise_unary(a, [](double x) { return std::cos(x); });
+}
+Array tan(const Array& a) {
+    return elementwise_unary(a, [](double x) { return std::tan(x); });
+}
+Array exp(const Array& a) {
+    return elementwise_unary(a, [](double x) { return std::exp(x); });
+}
+Array log(const Array& a) {
+    return elementwise_unary(a, [](double x) { return std::log(x); });
+}
 
 Array sqrt(const Array& arr) {
     MT_CHECK_UNARY_OP(arr);
@@ -342,17 +362,31 @@ Array divide(const Array& a, const Array& b) {
 // ---------------------------------------------------------
 // Element-wise operations
 // ---------------------------------------------------------
-Array Array::operator+(const Array& o) const { return elementwise_binary(*this, o, std::plus<>{});      }
-Array Array::operator-(const Array& o) const { return elementwise_binary(*this, o, std::minus<>{});     }
-Array Array::operator*(const Array& o) const { return elementwise_binary(*this, o, std::multiplies<>{}); }
+Array Array::operator+(const Array& o) const {
+    return elementwise_binary(*this, o, std::plus<>{});
+}
+Array Array::operator-(const Array& o) const {
+    return elementwise_binary(*this, o, std::minus<>{});
+}
+Array Array::operator*(const Array& o) const {
+    return elementwise_binary(*this, o, std::multiplies<>{});
+}
 
 // ---------------------------------------------------------
 // Scalar operations
 // ---------------------------------------------------------
-Array Array::operator+(double s) const { return elementwise_scalar(*this, s, std::plus<>{});       }
-Array Array::operator-(double s) const { return elementwise_scalar(*this, s, std::minus<>{});      }
-Array Array::operator*(double s) const { return elementwise_scalar(*this, s, std::multiplies<>{}); }
-Array Array::operator/(double s) const { return elementwise_scalar(*this, s, std::divides<>{});    }
+Array Array::operator+(double s) const {
+    return elementwise_scalar(*this, s, std::plus<>{});
+}
+Array Array::operator-(double s) const {
+    return elementwise_scalar(*this, s, std::minus<>{});
+}
+Array Array::operator*(double s) const {
+    return elementwise_scalar(*this, s, std::multiplies<>{});
+}
+Array Array::operator/(double s) const {
+    return elementwise_scalar(*this, s, std::divides<>{});
+}
 
 // ---------------------------------------------------------
 // Explicit Template Instantiations
