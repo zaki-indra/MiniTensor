@@ -1,7 +1,9 @@
 // minitensor/core/Macros.hpp
 #pragma once
 
+#include <cstdint>
 #include <minitensor/minitensor.hpp>
+#include <stdexcept>
 
 // ---------------------------------------------------------
 // Runtime Type Dispatcher

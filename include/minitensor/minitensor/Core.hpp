@@ -1,19 +1,17 @@
-// include/minitensor/minitensor/Core.hpp
+// include/minitensor/core.hpp
 #pragma once
 
-#ifndef _MINITENSOR_HPP_
-#error "include minitensor/minitensor.hpp in your application, **not** minitensor/minitensor/Core.hpp"
-#endif
+#include "Error.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <initializer_list>
-#include <iostream>
+#include <iosfwd>
 #include <memory>
-#include <optional>
 #include <span>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 namespace mt
@@ -32,36 +30,6 @@ enum class DeviceType {
     cpu,
     cuda,
 };
-
-inline std::ostream& operator<<(std::ostream& os, DataType dtype) {
-    switch (dtype) {
-    case DataType::i32:
-        os << "int32";
-        break;
-    case DataType::i64:
-        os << "int64";
-        break;
-    case DataType::f32:
-        os << "float32";
-        break;
-    case DataType::f64:
-        os << "float64";
-        break;
-    }
-    return os;
-}
-
-inline std::ostream& operator<<(std::ostream& os, DeviceType device) {
-    switch (device) {
-    case DeviceType::cpu:
-        os << "CPU";
-        break;
-    case DeviceType::cuda:
-        os << "CUDA";
-        break;
-    }
-    return os;
-}
 
 // ---------------------------------------------------------
 // DataType Type Traits
@@ -129,17 +97,9 @@ constexpr std::size_t element_size(DataType dtype) noexcept {
 
 using Shape = std::vector<std::size_t>;
 
-inline std::ostream& operator<<(std::ostream& os, const Shape& shape) {
-    os << "[";
-    for (std::size_t i = 0; i < shape.size(); ++i) {
-        os << shape[i];
-        if (i + 1 < shape.size()) {
-            os << ", ";
-        }
-    }
-    os << "]";
-    return os;
-}
+std::ostream& operator<<(std::ostream& os, DataType dtype);
+std::ostream& operator<<(std::ostream& os, DeviceType device);
+std::ostream& operator<<(std::ostream& os, const Shape& shape);
 
 // ---------------------------------------------------------
 // Forward Declarations
@@ -155,18 +115,16 @@ class Array {
     // Metadata
     // ---------------------------------------------------------
     bool       defined_ = false;
-    bool       is_view_ = false;
     size_t     numel_   = 0;
     Shape      shape_;
     Shape      strides_;
-    Shape      offsets_;
     DataType   dtype_;
     DeviceType device_;
 
     // ---------------------------------------------------------
     // Data Storage
     // ---------------------------------------------------------
-    Storage* data_ = nullptr;
+    std::shared_ptr<Storage> data_;
 
     // ---------------------------------------------------------
     // Private Helpers
@@ -174,10 +132,6 @@ class Array {
     void               compute_strides();
     static std::size_t shape_product(const Shape& s) noexcept;
     static bool        shapes_equal(const Shape& a, const Shape& b) noexcept;
-
-    // Broadcasting
-    static Shape broadcast_shapes(const Shape& a, const Shape& b);
-    Array        broadcast_to(const Shape& target_shape) const;
 
     // Private functions to manage storage
     void        allocate_storage();
@@ -188,14 +142,32 @@ class Array {
     // ---------------------------------------------------------
     // Constructors & Destructors
     // ---------------------------------------------------------
-    Array() noexcept;
-    Array(const Array& other);
-    Array(Array&& other) noexcept;
-    ~Array();
+    Array() noexcept = default;
+    Array(const Array& other) = default;
+    Array(Array&& other) noexcept
+        : defined_(std::exchange(other.defined_, false)),
+          numel_(std::exchange(other.numel_, 0)),
+          shape_(std::move(other.shape_)),
+          strides_(std::move(other.strides_)),
+          dtype_(other.dtype_),
+          device_(other.device_),
+          data_(std::move(other.data_)) {}
+    ~Array() = default;
 
     // Assignment Operators
-    Array& operator=(const Array& other);
-    Array& operator=(Array&& other) noexcept;
+    Array& operator=(const Array& other) = default;
+    Array& operator=(Array&& other) noexcept {
+        if (this != &other) {
+            defined_ = std::exchange(other.defined_, false);
+            numel_   = std::exchange(other.numel_, 0);
+            shape_   = std::move(other.shape_);
+            strides_ = std::move(other.strides_);
+            dtype_   = other.dtype_;
+            device_  = other.device_;
+            data_    = std::move(other.data_);
+        }
+        return *this;
+    }
 
     // Internal generic constructor
     Array(Shape shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
@@ -219,13 +191,13 @@ class Array {
     // ---------------------------------------------------------
     // Metadata Getter
     // ---------------------------------------------------------
-    [[nodiscard]] bool         defined() const noexcept;
-    [[nodiscard]] const Shape& shape() const noexcept;
-    [[nodiscard]] const Shape& strides() const noexcept;
-    [[nodiscard]] std::size_t  ndim() const noexcept;
-    [[nodiscard]] std::size_t  numel() const noexcept;
-    [[nodiscard]] DataType     dtype() const noexcept;
-    [[nodiscard]] DeviceType   device() const noexcept;
+    [[nodiscard]] bool         defined() const noexcept { return defined_; }
+    [[nodiscard]] const Shape& shape() const noexcept { return shape_; }
+    [[nodiscard]] const Shape& strides() const noexcept { return strides_; }
+    [[nodiscard]] std::size_t  ndim() const noexcept { return shape_.size(); }
+    [[nodiscard]] std::size_t  numel() const noexcept { return numel_; }
+    [[nodiscard]] DataType     dtype() const noexcept { return dtype_; }
+    [[nodiscard]] DeviceType   device() const noexcept { return device_; }
 
     // ---------------------------------------------------------
     // Type-Safe Indexing & Accessors
@@ -324,16 +296,6 @@ class Array {
     [[nodiscard]] Array operator/(double scalar) const;
 };
 
-// Convenience free functions
-[[nodiscard]] Array zeros(const Shape& shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
-[[nodiscard]] Array ones(const Shape& shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
-[[nodiscard]] Array randn(const Shape& shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
-template <typename T>
-[[nodiscard]] inline Array full(const Shape& shape, T fill_value, DataType dtype = TypeToDataType<T>::value,
-                                DeviceType device = DeviceType::cpu) {
-    return Array::full(shape, fill_value, dtype, device);
-}
-
 // Scalar-to-Array commutative operations
 [[nodiscard]] inline Array operator+(double scalar, const Array& arr) {
     return arr + scalar;
@@ -355,10 +317,13 @@ template <typename T>
 [[nodiscard]] Array exp(const Array& arr);
 [[nodiscard]] Array log(const Array& arr);
 [[nodiscard]] Array sqrt(const Array& arr);
-
-[[nodiscard]] Array add(const Array& a, const Array& b);
-[[nodiscard]] Array subtract(const Array& a, const Array& b);
-[[nodiscard]] Array multiply(const Array& a, const Array& b);
 [[nodiscard]] Array divide(const Array& a, const Array& b);
+
+// Free factory functions
+[[nodiscard]] Array zeros(const Shape& shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
+[[nodiscard]] Array ones(const Shape& shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
+[[nodiscard]] Array randn(const Shape& shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
+template <typename T>
+[[nodiscard]] Array full(const Shape& shape, T fill_value, DataType dtype = TypeToDataType<T>::value, DeviceType device = DeviceType::cpu);
 
 } // namespace mt

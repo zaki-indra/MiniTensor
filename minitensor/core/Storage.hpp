@@ -12,20 +12,17 @@ class Storage {
     DataType    dtype_  = DataType::f32;
     DeviceType  device_ = DeviceType::cpu;
 
-    int ref_count_ = 1;
-
   public:
     Storage() noexcept            = delete;
     Storage(const Storage& other) = delete;
+    Storage& operator=(const Storage& other) = delete;
+    
     Storage(Storage&& other) noexcept;
+    Storage& operator=(Storage&& other) noexcept;
 
     Storage(std::size_t numel, DataType dtype, DeviceType device);
 
     ~Storage();
-
-    void retain() noexcept;
-    void release() noexcept;
-    int  ref_count() const noexcept;
 
     [[nodiscard]] void*       data() noexcept;
     [[nodiscard]] const void* data() const noexcept;

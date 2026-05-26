@@ -1,4 +1,4 @@
-// include/minitensor/minitensor/Error.hpp
+// include/minitensor/error.hpp
 #pragma once
 
 #include <stdexcept>

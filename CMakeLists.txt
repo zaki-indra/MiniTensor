@@ -35,8 +35,7 @@ endif()
 add_library(minitensor
     minitensor/core/Array.cpp
     minitensor/core/Storage.cpp
-    minitensor/core/Allocator.cpp
-    minitensor/core/utilities.cpp
+    minitensor/core/IO.cpp
 )
 
 target_include_directories(minitensor

@@ -1,7 +1,7 @@
-#ifndef _MINITENSOR_HPP_
-#define _MINITENSOR_HPP_
+#ifndef MINITENSOR_HPP
+#define MINITENSOR_HPP
 
 #include "./minitensor/Error.hpp"
 #include "./minitensor/Core.hpp"
 
-#endif
+#endif // MINITENSOR_HPP

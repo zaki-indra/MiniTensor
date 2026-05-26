@@ -9,6 +9,8 @@
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
+#include <numeric>
+#include <functional>
 
 namespace mt
 {
@@ -17,7 +19,7 @@ namespace mt
 // Private Helpers
 // ---------------------------------------------------------
 void Array::allocate_storage() {
-    data_ = new Storage(numel_, dtype_, device_);
+    data_ = std::make_shared<Storage>(numel_, dtype_, device_);
 }
 
 void* Array::raw_data() noexcept {
@@ -28,80 +30,32 @@ const void* Array::raw_data() const noexcept {
     return data_ ? data_->data() : nullptr;
 }
 
-// ---------------------------------------------------------
-// Constructors & Destructors
-// ---------------------------------------------------------
-Array::Array() noexcept = default;
-
-Array::Array(const Array& other)
-    : defined_(other.defined_), is_view_(other.is_view_), numel_(other.numel_), shape_(other.shape_),
-      strides_(other.strides_), offsets_(other.offsets_), dtype_(other.dtype_), device_(other.device_),
-      data_(other.data_) {
-    if (data_) {
-        data_->retain();
+void Array::compute_strides() {
+    this->strides_.resize(shape_.size());
+    std::size_t stride = 1;
+    for (int i = static_cast<int>(shape_.size()) - 1; i >= 0; --i) {
+        this->strides_[i] = stride;
+        stride *= shape_[i];
     }
 }
 
-Array::Array(Array&& other) noexcept
-    : defined_(other.defined_), is_view_(other.is_view_), numel_(other.numel_), shape_(std::move(other.shape_)),
-      strides_(std::move(other.strides_)), offsets_(std::move(other.offsets_)), dtype_(other.dtype_),
-      device_(other.device_), data_(other.data_) {
-    other.data_    = nullptr;
-    other.defined_ = false;
-    other.numel_   = 0;
+std::size_t Array::shape_product(const Shape& s) noexcept {
+    return std::accumulate(s.begin(), s.end(), std::size_t{1}, std::multiplies<>{});
 }
 
-Array::~Array() {
-    if (data_) {
-        data_->release();
+bool Array::shapes_equal(const Shape& a, const Shape& b) noexcept {
+    if (a.size() != b.size())
+        return false;
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        if (a[i] != b[i])
+            return false;
     }
+    return true;
 }
 
 // ---------------------------------------------------------
-// Assignment Operators
+// Constructors
 // ---------------------------------------------------------
-Array& Array::operator=(const Array& other) {
-    if (this != &other) {
-        if (data_) {
-            data_->release();
-        }
-        defined_ = other.defined_;
-        is_view_ = other.is_view_;
-        numel_   = other.numel_;
-        shape_   = other.shape_;
-        strides_ = other.strides_;
-        offsets_ = other.offsets_;
-        dtype_   = other.dtype_;
-        device_  = other.device_;
-        data_    = other.data_;
-        if (data_) {
-            data_->retain();
-        }
-    }
-    return *this;
-}
-
-Array& Array::operator=(Array&& other) noexcept {
-    if (this != &other) {
-        if (data_) {
-            data_->release();
-        }
-        defined_ = other.defined_;
-        is_view_ = other.is_view_;
-        numel_   = other.numel_;
-        shape_   = std::move(other.shape_);
-        strides_ = std::move(other.strides_);
-        offsets_ = std::move(other.offsets_);
-        dtype_   = other.dtype_;
-        device_  = other.device_;
-        data_    = other.data_;
-
-        other.data_    = nullptr;
-        other.defined_ = false;
-        other.numel_   = 0;
-    }
-    return *this;
-}
 
 Array::Array(Shape shape, DataType dtype, DeviceType device)
     : defined_(true), shape_(std::move(shape)), dtype_(dtype), device_(device) {
@@ -116,31 +70,6 @@ Array::Array(const void* data, Shape shape, DataType dtype, DeviceType device)
     compute_strides();
     allocate_storage();
     std::memcpy(raw_data(), data, numel_ * element_size(dtype));
-}
-
-// ---------------------------------------------------------
-// Metadata Getter
-// ---------------------------------------------------------
-bool Array::defined() const noexcept {
-    return this->defined_;
-}
-const Shape& Array::shape() const noexcept {
-    return this->shape_;
-}
-const Shape& Array::strides() const noexcept {
-    return this->strides_;
-}
-std::size_t Array::ndim() const noexcept {
-    return this->shape_.size();
-}
-std::size_t Array::numel() const noexcept {
-    return this->numel_;
-}
-DataType Array::dtype() const noexcept {
-    return this->dtype_;
-}
-DeviceType Array::device() const noexcept {
-    return this->device_;
 }
 
 // ---------------------------------------------------------
@@ -181,159 +110,6 @@ Array Array::to(DeviceType target_device) const {
     Array copied(shape_, dtype_, target_device);
     std::memcpy(copied.raw_data(), this->raw_data(), numel_ * element_size(dtype_));
     return copied;
-}
-
-// ---------------------------------------------------------
-// Initializers
-// ---------------------------------------------------------
-Array Array::zeros(const Shape& shape, DataType dtype, DeviceType device) {
-    Array r(shape, dtype, device);
-    MT_DISPATCH_ALL_TYPES(dtype, T, [&]() {
-        T* ptr = static_cast<T*>(r.raw_data());
-        std::fill(ptr, ptr + r.numel(), static_cast<T>(0));
-    });
-    return r;
-}
-
-Array Array::ones(const Shape& shape, DataType dtype, DeviceType device) {
-    Array r(shape, dtype, device);
-    MT_DISPATCH_ALL_TYPES(dtype, T, [&]() {
-        T* ptr = static_cast<T*>(r.raw_data());
-        std::fill(ptr, ptr + r.numel(), static_cast<T>(1));
-    });
-    return r;
-}
-
-Array Array::randn(const Shape& shape, DataType dtype, DeviceType device) {
-    Array              r(shape, dtype, device);
-    std::random_device rd;
-    std::mt19937       gen(rd());
-
-    MT_DISPATCH_ALL_TYPES(dtype, T, [&]<typename U = T>() {
-        U* ptr = static_cast<U*>(r.raw_data());
-
-        std::normal_distribution dis(0.0, 1.0);
-        for (std::size_t i = 0; i < r.numel(); ++i)
-            ptr[i] = dis(gen);
-    });
-    return r;
-}
-
-template <typename T>
-Array Array::full(const Shape& shape, T fill_value, DataType dtype, DeviceType device) {
-    Array r(shape, dtype, device);
-    MT_DISPATCH_ALL_TYPES(dtype, U, [&]() {
-        U* ptr = static_cast<U*>(r.raw_data());
-        std::fill(ptr, ptr + r.numel(), static_cast<U>(fill_value));
-    });
-    return r;
-}
-
-Array zeros(const Shape& shape, DataType dtype, DeviceType device) {
-    return Array::zeros(shape, dtype, device);
-}
-Array ones(const Shape& shape, DataType dtype, DeviceType device) {
-    return Array::ones(shape, dtype, device);
-}
-Array randn(const Shape& shape, DataType dtype, DeviceType device) {
-    return Array::randn(shape, dtype, device);
-}
-
-// ---------------------------------------------------------
-// Element-wise operations
-// ---------------------------------------------------------
-Array Array::operator+(const Array& other) const {
-    MT_CHECK_BINARY_ELEMENTWISE(*this, other);
-    Array r(this->shape(), this->dtype(), this->device());
-    MT_DISPATCH_ALL_TYPES(this->dtype(), T, [&]() {
-        const T* a_ptr = static_cast<const T*>(this->raw_data());
-        const T* b_ptr = static_cast<const T*>(other.raw_data());
-        T*       r_ptr = static_cast<T*>(r.raw_data());
-        for (std::size_t i = 0; i < this->numel(); ++i)
-            r_ptr[i] = a_ptr[i] + b_ptr[i];
-    });
-    return r;
-}
-
-Array Array::operator-(const Array& other) const {
-    MT_CHECK_BINARY_ELEMENTWISE(*this, other);
-    Array r(this->shape(), this->dtype(), this->device());
-    MT_DISPATCH_ALL_TYPES(this->dtype(), T, [&]() {
-        const T* a_ptr = static_cast<const T*>(this->raw_data());
-        const T* b_ptr = static_cast<const T*>(other.raw_data());
-        T*       r_ptr = static_cast<T*>(r.raw_data());
-        for (std::size_t i = 0; i < this->numel(); ++i)
-            r_ptr[i] = a_ptr[i] - b_ptr[i];
-    });
-    return r;
-}
-
-Array Array::operator*(const Array& other) const {
-    MT_CHECK_BINARY_ELEMENTWISE(*this, other);
-    Array r(this->shape(), this->dtype(), this->device());
-    MT_DISPATCH_ALL_TYPES(this->dtype(), T, [&]() {
-        const T* a_ptr = static_cast<const T*>(this->raw_data());
-        const T* b_ptr = static_cast<const T*>(other.raw_data());
-        T*       r_ptr = static_cast<T*>(r.raw_data());
-        for (std::size_t i = 0; i < this->numel(); ++i)
-            r_ptr[i] = a_ptr[i] * b_ptr[i];
-    });
-    return r;
-}
-
-// ---------------------------------------------------------
-// Scalar operations
-// ---------------------------------------------------------
-Array Array::operator+(double scalar) const {
-    MT_CHECK_BINARY_SCALAR(*this);
-    Array r(this->shape(), this->dtype(), this->device());
-    MT_DISPATCH_ALL_TYPES(this->dtype(), T, [&]() {
-        const T* a_ptr = static_cast<const T*>(this->raw_data());
-        T*       r_ptr = static_cast<T*>(r.raw_data());
-        T        s     = static_cast<T>(scalar);
-        for (std::size_t i = 0; i < this->numel(); ++i)
-            r_ptr[i] = a_ptr[i] + s;
-    });
-    return r;
-}
-
-Array Array::operator-(double scalar) const {
-    MT_CHECK_BINARY_SCALAR(*this);
-    Array r(this->shape(), this->dtype(), this->device());
-    MT_DISPATCH_ALL_TYPES(this->dtype(), T, [&]() {
-        const T* a_ptr = static_cast<const T*>(this->raw_data());
-        T*       r_ptr = static_cast<T*>(r.raw_data());
-        T        s     = static_cast<T>(scalar);
-        for (std::size_t i = 0; i < this->numel(); ++i)
-            r_ptr[i] = a_ptr[i] - s;
-    });
-    return r;
-}
-
-Array Array::operator*(double scalar) const {
-    MT_CHECK_BINARY_SCALAR(*this);
-    Array r(this->shape(), this->dtype(), this->device());
-    MT_DISPATCH_ALL_TYPES(this->dtype(), T, [&]() {
-        const T* a_ptr = static_cast<const T*>(this->raw_data());
-        T*       r_ptr = static_cast<T*>(r.raw_data());
-        T        s     = static_cast<T>(scalar);
-        for (std::size_t i = 0; i < this->numel(); ++i)
-            r_ptr[i] = a_ptr[i] * s;
-    });
-    return r;
-}
-
-Array Array::operator/(double scalar) const {
-    MT_CHECK_BINARY_SCALAR(*this);
-    Array r(this->shape(), this->dtype(), this->device());
-    MT_DISPATCH_ALL_TYPES(this->dtype(), T, [&]() {
-        const T* a_ptr = static_cast<const T*>(this->raw_data());
-        T*       r_ptr = static_cast<T*>(r.raw_data());
-        T        s     = static_cast<T>(scalar);
-        for (std::size_t i = 0; i < this->numel(); ++i)
-            r_ptr[i] = a_ptr[i] / s;
-    });
-    return r;
 }
 
 Array Array::reshape(const Shape& new_shape) const {
@@ -409,73 +185,116 @@ Array Array::flatten(std::size_t start_dim, std::size_t end_dim) const {
 }
 
 // ---------------------------------------------------------
-// Unary Mathematical Functions
+// Helper Templates for Operations
+// ---------------------------------------------------------
+namespace {
+
+template <class F>
+Array elementwise_unary(const Array& a, F&& fn) {
+    MT_CHECK_UNARY_OP(a);
+    Array r(a.shape(), a.dtype(), a.device());
+    MT_DISPATCH_ALL_TYPES(a.dtype(), T, [&]() {
+        const T* src = a.data<T>();
+        T*       dst = r.data<T>();
+        for (std::size_t i = 0; i < a.numel(); ++i)
+            dst[i] = static_cast<T>(fn(static_cast<double>(src[i])));
+    });
+    return r;
+}
+
+template <class Op>
+Array elementwise_binary(const Array& a, const Array& b, Op&& op) {
+    MT_CHECK_BINARY_ELEMENTWISE(a, b);
+    Array r(a.shape(), a.dtype(), a.device());
+    MT_DISPATCH_ALL_TYPES(a.dtype(), T, [&]() {
+        const T* ap = a.data<T>();
+        const T* bp = b.data<T>();
+        T*       rp = r.data<T>();
+        for (std::size_t i = 0; i < a.numel(); ++i) rp[i] = op(ap[i], bp[i]);
+    });
+    return r;
+}
+
+template <class Op>
+Array elementwise_scalar(const Array& a, double s, Op&& op) {
+    MT_CHECK_BINARY_SCALAR(a);
+    Array r(a.shape(), a.dtype(), a.device());
+    MT_DISPATCH_ALL_TYPES(a.dtype(), T, [&]() {
+        const T* ap = a.data<T>();
+        T*       rp = r.data<T>();
+        T        sv = static_cast<T>(s);
+        for (std::size_t i = 0; i < a.numel(); ++i) rp[i] = op(ap[i], sv);
+    });
+    return r;
+}
+
+template <class T>
+Array filled(const Shape& shape, T v, DataType dtype, DeviceType device) {
+    Array r(shape, dtype, device);
+    MT_DISPATCH_ALL_TYPES(dtype, U, [&]() {
+        U* p = r.data<U>();
+        std::fill(p, p + r.numel(), static_cast<U>(v));
+    });
+    return r;
+}
+
+} // namespace
+
+// ---------------------------------------------------------
+// Initializers
+// ---------------------------------------------------------
+Array Array::zeros(const Shape& s, DataType d, DeviceType dev) { return filled(s, 0, d, dev); }
+Array Array::ones (const Shape& s, DataType d, DeviceType dev) { return filled(s, 1, d, dev); }
+template <class T>
+Array Array::full (const Shape& s, T v, DataType d, DeviceType dev) { return filled(s, v, d, dev); }
+
+Array Array::randn(const Shape& shape, DataType dtype, DeviceType device) {
+    Array              r(shape, dtype, device);
+    std::random_device rd;
+    std::mt19937       gen(rd());
+
+    MT_DISPATCH_ALL_TYPES(dtype, T, [&]<typename U = T>() {
+        U* ptr = r.data<U>();
+
+        std::normal_distribution dis(0.0, 1.0);
+        for (std::size_t i = 0; i < r.numel(); ++i)
+            ptr[i] = dis(gen);
+    });
+    return r;
+}
+
+Array zeros(const Shape& shape, DataType dtype, DeviceType device) {
+    return Array::zeros(shape, dtype, device);
+}
+Array ones(const Shape& shape, DataType dtype, DeviceType device) {
+    return Array::ones(shape, dtype, device);
+}
+Array randn(const Shape& shape, DataType dtype, DeviceType device) {
+    return Array::randn(shape, dtype, device);
+}
+template <typename T>
+Array full(const Shape& shape, T fill_value, DataType dtype, DeviceType device) {
+    return Array::full(shape, fill_value, dtype, device);
+}
+
+// ---------------------------------------------------------
+// Explicit Template Instantiations
 // ---------------------------------------------------------
 
-Array sin(const Array& arr) {
-    MT_CHECK_UNARY_OP(arr);
-    Array r(arr.shape(), arr.dtype(), arr.device());
-    MT_DISPATCH_ALL_TYPES(arr.dtype(), T, [&]() {
-        const T* src = arr.data<T>();
-        T*       dst = r.data<T>();
-        for (std::size_t i = 0; i < arr.numel(); ++i) {
-            dst[i] = static_cast<T>(std::sin(static_cast<double>(src[i])));
-        }
-    });
-    return r;
-}
+template Array full<float>(const Shape& shape, float fill_value, DataType dtype, DeviceType device);
+template Array full<double>(const Shape& shape, double fill_value, DataType dtype, DeviceType device);
+template Array full<int>(const Shape& shape, int fill_value, DataType dtype, DeviceType device);
+template Array full<long>(const Shape& shape, long fill_value, DataType dtype, DeviceType device);
+template Array full<long long>(const Shape& shape, long long fill_value, DataType dtype, DeviceType device);
 
-Array cos(const Array& arr) {
-    MT_CHECK_UNARY_OP(arr);
-    Array r(arr.shape(), arr.dtype(), arr.device());
-    MT_DISPATCH_ALL_TYPES(arr.dtype(), T, [&]() {
-        const T* src = arr.data<T>();
-        T*       dst = r.data<T>();
-        for (std::size_t i = 0; i < arr.numel(); ++i) {
-            dst[i] = static_cast<T>(std::cos(static_cast<double>(src[i])));
-        }
-    });
-    return r;
-}
-
-Array tan(const Array& arr) {
-    MT_CHECK_UNARY_OP(arr);
-    Array r(arr.shape(), arr.dtype(), arr.device());
-    MT_DISPATCH_ALL_TYPES(arr.dtype(), T, [&]() {
-        const T* src = arr.data<T>();
-        T*       dst = r.data<T>();
-        for (std::size_t i = 0; i < arr.numel(); ++i) {
-            dst[i] = static_cast<T>(std::tan(static_cast<double>(src[i])));
-        }
-    });
-    return r;
-}
-
-Array exp(const Array& arr) {
-    MT_CHECK_UNARY_OP(arr);
-    Array r(arr.shape(), arr.dtype(), arr.device());
-    MT_DISPATCH_ALL_TYPES(arr.dtype(), T, [&]() {
-        const T* src = arr.data<T>();
-        T*       dst = r.data<T>();
-        for (std::size_t i = 0; i < arr.numel(); ++i) {
-            dst[i] = static_cast<T>(std::exp(static_cast<double>(src[i])));
-        }
-    });
-    return r;
-}
-
-Array log(const Array& arr) {
-    MT_CHECK_UNARY_OP(arr);
-    Array r(arr.shape(), arr.dtype(), arr.device());
-    MT_DISPATCH_ALL_TYPES(arr.dtype(), T, [&]() {
-        const T* src = arr.data<T>();
-        T*       dst = r.data<T>();
-        for (std::size_t i = 0; i < arr.numel(); ++i) {
-            dst[i] = static_cast<T>(std::log(static_cast<double>(src[i])));
-        }
-    });
-    return r;
-}
+// ---------------------------------------------------------
+// Mathematical functions
+// ---------------------------------------------------------
+Array sin (const Array& a) { return elementwise_unary(a, [](double x){ return std::sin (x); }); }
+Array cos (const Array& a) { return elementwise_unary(a, [](double x){ return std::cos (x); }); }
+Array tan (const Array& a) { return elementwise_unary(a, [](double x){ return std::tan (x); }); }
+Array exp (const Array& a) { return elementwise_unary(a, [](double x){ return std::exp (x); }); }
+Array log (const Array& a) { return elementwise_unary(a, [](double x){ return std::log (x); }); }
 
 Array sqrt(const Array& arr) {
     MT_CHECK_UNARY_OP(arr);
@@ -493,22 +312,6 @@ Array sqrt(const Array& arr) {
         }
     });
     return r;
-}
-
-// ---------------------------------------------------------
-// Binary Element-Wise Operations
-// ---------------------------------------------------------
-
-Array add(const Array& a, const Array& b) {
-    return a + b;
-}
-
-Array subtract(const Array& a, const Array& b) {
-    return a - b;
-}
-
-Array multiply(const Array& a, const Array& b) {
-    return a * b;
 }
 
 Array divide(const Array& a, const Array& b) {
@@ -535,6 +338,21 @@ Array divide(const Array& a, const Array& b) {
     }
     return r;
 }
+
+// ---------------------------------------------------------
+// Element-wise operations
+// ---------------------------------------------------------
+Array Array::operator+(const Array& o) const { return elementwise_binary(*this, o, std::plus<>{});      }
+Array Array::operator-(const Array& o) const { return elementwise_binary(*this, o, std::minus<>{});     }
+Array Array::operator*(const Array& o) const { return elementwise_binary(*this, o, std::multiplies<>{}); }
+
+// ---------------------------------------------------------
+// Scalar operations
+// ---------------------------------------------------------
+Array Array::operator+(double s) const { return elementwise_scalar(*this, s, std::plus<>{});       }
+Array Array::operator-(double s) const { return elementwise_scalar(*this, s, std::minus<>{});      }
+Array Array::operator*(double s) const { return elementwise_scalar(*this, s, std::multiplies<>{}); }
+Array Array::operator/(double s) const { return elementwise_scalar(*this, s, std::divides<>{});    }
 
 // ---------------------------------------------------------
 // Explicit Template Instantiations

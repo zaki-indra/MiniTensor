@@ -41,13 +41,13 @@ TEST(ArrayMathTest, BinaryArithmeticHelpersWork) {
     mt::Array a = mt::ones({2, 2});
     mt::Array b = mt::full({2, 2}, 3.0f);
 
-    mt::Array c_add = mt::add(a, b);
+    mt::Array c_add = a + b;
     EXPECT_FLOAT_EQ(c_add.at<float>({0, 0}), 4.0f);
 
-    mt::Array c_sub = mt::subtract(b, a);
+    mt::Array c_sub = b - a;
     EXPECT_FLOAT_EQ(c_sub.at<float>({0, 0}), 2.0f);
 
-    mt::Array c_mul = mt::multiply(a, b);
+    mt::Array c_mul = a * b;
     EXPECT_FLOAT_EQ(c_mul.at<float>({0, 0}), 3.0f);
 }
 
