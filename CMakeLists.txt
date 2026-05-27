@@ -34,6 +34,7 @@ endif()
 # ─────────────────────────────────────────────
 add_library(minitensor
     minitensor/core/Array.cpp
+    minitensor/core/ArrayIterator.cpp
     minitensor/core/Storage.cpp
     minitensor/core/IO.cpp
 )

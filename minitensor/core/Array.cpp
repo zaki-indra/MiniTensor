@@ -1,5 +1,6 @@
 // minitensor/core/Array.cpp
 
+#include "ArrayIterator.hpp"
 #include "ErrorMacros.hpp"
 #include "Macros.hpp"
 #include "Storage.hpp"
@@ -193,42 +194,36 @@ namespace
 
 template <class F>
 Array elementwise_unary(const Array& a, F&& fn) {
-    MT_CHECK_UNARY_OP(a);
+    MT_CHECK_DEFINED(a);
     Array r(a.shape(), a.dtype(), a.device());
-    MT_DISPATCH_ALL_TYPES(a.dtype(), T, [&]() {
-        const T* src = a.data<T>();
-        T*       dst = r.data<T>();
-        for (std::size_t i = 0; i < a.numel(); ++i)
-            dst[i] = static_cast<T>(fn(static_cast<double>(src[i])));
-    });
+    ArrayIteratorConfig()
+      .add_output(r)
+      .add_input(a)
+      .build()
+      .for_each([&fn]<typename T>(T x) -> T { return static_cast<T>(fn(static_cast<double>(x))); });
     return r;
 }
 
 template <class Op>
 Array elementwise_binary(const Array& a, const Array& b, Op&& op) {
-    MT_CHECK_BINARY_ELEMENTWISE(a, b);
     Array r(a.shape(), a.dtype(), a.device());
-    MT_DISPATCH_ALL_TYPES(a.dtype(), T, [&]() {
-        const T* ap = a.data<T>();
-        const T* bp = b.data<T>();
-        T*       rp = r.data<T>();
-        for (std::size_t i = 0; i < a.numel(); ++i)
-            rp[i] = op(ap[i], bp[i]);
-    });
+    ArrayIteratorConfig()
+      .add_output(r)
+      .add_input(a)
+      .add_input(b)
+      .build()
+      .for_each([&op]<typename T>(T x, T y) -> T { return op(x, y); });
     return r;
 }
 
 template <class Op>
 Array elementwise_scalar(const Array& a, double s, Op&& op) {
-    MT_CHECK_BINARY_SCALAR(a);
     Array r(a.shape(), a.dtype(), a.device());
-    MT_DISPATCH_ALL_TYPES(a.dtype(), T, [&]() {
-        const T* ap = a.data<T>();
-        T*       rp = r.data<T>();
-        T        sv = static_cast<T>(s);
-        for (std::size_t i = 0; i < a.numel(); ++i)
-            rp[i] = op(ap[i], sv);
-    });
+    ArrayIteratorConfig()
+      .add_output(r)
+      .add_input(a)
+      .build()
+      .for_each([&op, s]<typename T>(T x) -> T { return op(x, static_cast<T>(s)); });
     return r;
 }
 
@@ -317,42 +312,31 @@ Array log(const Array& a) {
 }
 
 Array sqrt(const Array& arr) {
-    MT_CHECK_UNARY_OP(arr);
     Array r(arr.shape(), arr.dtype(), arr.device());
-    MT_DISPATCH_ALL_TYPES(arr.dtype(), T, [&]() {
-        const T* src = arr.data<T>();
-        T*       dst = r.data<T>();
-        for (std::size_t i = 0; i < arr.numel(); ++i) {
-            if constexpr (std::is_integral_v<T>) {
-                if (src[i] < 0) {
-                    MT_THROW(mt::ArithmeticError, "Square root of negative integer " << src[i] << " is undefined.");
-                }
+    ArrayIteratorConfig().add_output(r).add_input(arr).build().for_each([]<typename T>(T x) -> T {
+        if constexpr (std::is_integral_v<T>) {
+            if (x < 0) {
+                MT_THROW(mt::ArithmeticError, "Square root of negative integer " << x << " is undefined.");
             }
-            dst[i] = static_cast<T>(std::sqrt(static_cast<double>(src[i])));
         }
+        return static_cast<T>(std::sqrt(static_cast<double>(x)));
     });
     return r;
 }
 
 Array divide(const Array& a, const Array& b) {
-    MT_CHECK_BINARY_ELEMENTWISE(a, b);
     Array r(a.shape(), a.dtype(), a.device());
     bool  zero_division = false;
-    MT_DISPATCH_ALL_TYPES(a.dtype(), T, [&]() {
-        const T* a_ptr = a.data<T>();
-        const T* b_ptr = b.data<T>();
-        T*       r_ptr = r.data<T>();
-        for (std::size_t i = 0; i < a.numel(); ++i) {
-            if (b_ptr[i] == 0) {
-                if constexpr (std::is_integral_v<T>) {
-                    zero_division = true;
-                    r_ptr[i]      = 0;
-                    continue;
-                }
-            }
-            r_ptr[i] = a_ptr[i] / b_ptr[i];
-        }
-    });
+    ArrayIteratorConfig().add_output(r).add_input(a).add_input(b).build().for_each(
+      [&zero_division]<typename T>(T x, T y) -> T {
+          if (y == T{0}) {
+              if constexpr (std::is_integral_v<T>) {
+                  zero_division = true;
+                  return T{0};
+              }
+          }
+          return x / y;
+      });
     if (zero_division) {
         throw mt::ArithmeticError("Division by zero encountered.");
     }

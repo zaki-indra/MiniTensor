@@ -178,7 +178,8 @@ TEST(ArrayErrorHandlingTest, ErrorMessageFormattingContainsCorrectDetail) {
         std::string msg = e.what();
         // Check that it contains context information like file, line, and descriptive text
         EXPECT_TRUE(msg.find("ShapeError") != std::string::npos);
-        EXPECT_TRUE(msg.find("Array.cpp") != std::string::npos);
+        // Validation now lives in the ArrayIterator builder.
+        EXPECT_TRUE(msg.find("ArrayIterator.cpp") != std::string::npos);
         EXPECT_TRUE(msg.find("Shape mismatch") != std::string::npos);
         EXPECT_TRUE(msg.find("[2, 2]") != std::string::npos);
         EXPECT_TRUE(msg.find("[2, 3]") != std::string::npos);
