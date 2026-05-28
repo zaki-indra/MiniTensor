@@ -1,6 +1,9 @@
 // minitensor/core/Array.cpp
+//
+// The Array descriptor: construction, metadata, storage glue, and the
+// shape-preserving operations (clone, cast, to, reshape, flatten). Numeric
+// ops live under ops/.
 
-#include "ArrayIterator.hpp"
 #include "ErrorMacros.hpp"
 #include "Macros.hpp"
 #include "Storage.hpp"
@@ -9,9 +12,6 @@
 #include <functional>
 #include <minitensor/minitensor.hpp>
 #include <numeric>
-#include <random>
-#include <stdexcept>
-#include <type_traits>
 #include <utility>
 
 namespace mt
@@ -58,7 +58,6 @@ bool Array::shapes_equal(const Shape& a, const Shape& b) noexcept {
 // ---------------------------------------------------------
 // Constructors
 // ---------------------------------------------------------
-
 Array::Array(Shape shape, DataType dtype, DeviceType device)
     : defined_(true), shape_(std::move(shape)), dtype_(dtype), device_(device) {
     numel_ = shape_product(shape_);
@@ -114,6 +113,9 @@ Array Array::to(DeviceType target_device) const {
     return copied;
 }
 
+// ---------------------------------------------------------
+// Shape manipulation
+// ---------------------------------------------------------
 Array Array::reshape(const Shape& new_shape) const {
     MT_CHECK_DEFINED(*this);
 
@@ -185,201 +187,5 @@ Array Array::flatten(std::size_t start_dim, std::size_t end_dim) const {
 
     return reshape(new_shape);
 }
-
-// ---------------------------------------------------------
-// Helper Templates for Operations
-// ---------------------------------------------------------
-namespace
-{
-
-template <class F>
-Array elementwise_unary(const Array& a, F&& fn) {
-    MT_CHECK_DEFINED(a);
-    Array r(a.shape(), a.dtype(), a.device());
-    ArrayIteratorConfig()
-      .add_output(r)
-      .add_input(a)
-      .build()
-      .for_each([&fn]<typename T>(T x) -> T { return static_cast<T>(fn(static_cast<double>(x))); });
-    return r;
-}
-
-template <class Op>
-Array elementwise_binary(const Array& a, const Array& b, Op&& op) {
-    Array r(a.shape(), a.dtype(), a.device());
-    ArrayIteratorConfig()
-      .add_output(r)
-      .add_input(a)
-      .add_input(b)
-      .build()
-      .for_each([&op]<typename T>(T x, T y) -> T { return op(x, y); });
-    return r;
-}
-
-template <class Op>
-Array elementwise_scalar(const Array& a, double s, Op&& op) {
-    Array r(a.shape(), a.dtype(), a.device());
-    ArrayIteratorConfig()
-      .add_output(r)
-      .add_input(a)
-      .build()
-      .for_each([&op, s]<typename T>(T x) -> T { return op(x, static_cast<T>(s)); });
-    return r;
-}
-
-template <class T>
-Array filled(const Shape& shape, T v, DataType dtype, DeviceType device) {
-    Array r(shape, dtype, device);
-    MT_DISPATCH_ALL_TYPES(dtype, U, [&]() {
-        U* p = r.data<U>();
-        std::fill(p, p + r.numel(), static_cast<U>(v));
-    });
-    return r;
-}
-
-} // namespace
-
-// ---------------------------------------------------------
-// Initializers
-// ---------------------------------------------------------
-Array Array::zeros(const Shape& s, DataType d, DeviceType dev) {
-    return filled(s, 0, d, dev);
-}
-Array Array::ones(const Shape& s, DataType d, DeviceType dev) {
-    return filled(s, 1, d, dev);
-}
-template <class T>
-Array Array::full(const Shape& s, T v, DataType d, DeviceType dev) {
-    return filled(s, v, d, dev);
-}
-
-Array Array::randn(const Shape& shape, DataType dtype, DeviceType device) {
-    Array              r(shape, dtype, device);
-    std::random_device rd;
-    std::mt19937       gen(rd());
-
-    MT_DISPATCH_ALL_TYPES(dtype, T, [&]<typename U = T>() {
-        U* ptr = r.data<U>();
-
-        std::normal_distribution dis(0.0, 1.0);
-        for (std::size_t i = 0; i < r.numel(); ++i)
-            ptr[i] = dis(gen);
-    });
-    return r;
-}
-
-Array zeros(const Shape& shape, DataType dtype, DeviceType device) {
-    return Array::zeros(shape, dtype, device);
-}
-Array ones(const Shape& shape, DataType dtype, DeviceType device) {
-    return Array::ones(shape, dtype, device);
-}
-Array randn(const Shape& shape, DataType dtype, DeviceType device) {
-    return Array::randn(shape, dtype, device);
-}
-template <typename T>
-Array full(const Shape& shape, T fill_value, DataType dtype, DeviceType device) {
-    return Array::full(shape, fill_value, dtype, device);
-}
-
-// ---------------------------------------------------------
-// Explicit Template Instantiations
-// ---------------------------------------------------------
-
-template Array full<float>(const Shape& shape, float fill_value, DataType dtype, DeviceType device);
-template Array full<double>(const Shape& shape, double fill_value, DataType dtype, DeviceType device);
-template Array full<int>(const Shape& shape, int fill_value, DataType dtype, DeviceType device);
-template Array full<long>(const Shape& shape, long fill_value, DataType dtype, DeviceType device);
-template Array full<long long>(const Shape& shape, long long fill_value, DataType dtype, DeviceType device);
-
-// ---------------------------------------------------------
-// Mathematical functions
-// ---------------------------------------------------------
-Array sin(const Array& a) {
-    return elementwise_unary(a, [](double x) { return std::sin(x); });
-}
-Array cos(const Array& a) {
-    return elementwise_unary(a, [](double x) { return std::cos(x); });
-}
-Array tan(const Array& a) {
-    return elementwise_unary(a, [](double x) { return std::tan(x); });
-}
-Array exp(const Array& a) {
-    return elementwise_unary(a, [](double x) { return std::exp(x); });
-}
-Array log(const Array& a) {
-    return elementwise_unary(a, [](double x) { return std::log(x); });
-}
-
-Array sqrt(const Array& arr) {
-    Array r(arr.shape(), arr.dtype(), arr.device());
-    ArrayIteratorConfig().add_output(r).add_input(arr).build().for_each([]<typename T>(T x) -> T {
-        if constexpr (std::is_integral_v<T>) {
-            if (x < 0) {
-                MT_THROW(mt::ArithmeticError, "Square root of negative integer " << x << " is undefined.");
-            }
-        }
-        return static_cast<T>(std::sqrt(static_cast<double>(x)));
-    });
-    return r;
-}
-
-Array divide(const Array& a, const Array& b) {
-    Array r(a.shape(), a.dtype(), a.device());
-    bool  zero_division = false;
-    ArrayIteratorConfig().add_output(r).add_input(a).add_input(b).build().for_each(
-      [&zero_division]<typename T>(T x, T y) -> T {
-          if (y == T{0}) {
-              if constexpr (std::is_integral_v<T>) {
-                  zero_division = true;
-                  return T{0};
-              }
-          }
-          return x / y;
-      });
-    if (zero_division) {
-        throw mt::ArithmeticError("Division by zero encountered.");
-    }
-    return r;
-}
-
-// ---------------------------------------------------------
-// Element-wise operations
-// ---------------------------------------------------------
-Array Array::operator+(const Array& o) const {
-    return elementwise_binary(*this, o, std::plus<>{});
-}
-Array Array::operator-(const Array& o) const {
-    return elementwise_binary(*this, o, std::minus<>{});
-}
-Array Array::operator*(const Array& o) const {
-    return elementwise_binary(*this, o, std::multiplies<>{});
-}
-
-// ---------------------------------------------------------
-// Scalar operations
-// ---------------------------------------------------------
-Array Array::operator+(double s) const {
-    return elementwise_scalar(*this, s, std::plus<>{});
-}
-Array Array::operator-(double s) const {
-    return elementwise_scalar(*this, s, std::minus<>{});
-}
-Array Array::operator*(double s) const {
-    return elementwise_scalar(*this, s, std::multiplies<>{});
-}
-Array Array::operator/(double s) const {
-    return elementwise_scalar(*this, s, std::divides<>{});
-}
-
-// ---------------------------------------------------------
-// Explicit Template Instantiations
-// ---------------------------------------------------------
-
-template Array Array::full<float>(const Shape& shape, float fill_value, DataType dtype, DeviceType device);
-template Array Array::full<double>(const Shape& shape, double fill_value, DataType dtype, DeviceType device);
-template Array Array::full<int>(const Shape& shape, int fill_value, DataType dtype, DeviceType device);
-template Array Array::full<long>(const Shape& shape, long fill_value, DataType dtype, DeviceType device);
-template Array Array::full<long long>(const Shape& shape, long long fill_value, DataType dtype, DeviceType device);
 
 } // namespace mt

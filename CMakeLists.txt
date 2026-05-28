@@ -37,6 +37,9 @@ add_library(minitensor
     minitensor/core/ArrayIterator.cpp
     minitensor/core/Storage.cpp
     minitensor/core/IO.cpp
+    minitensor/ops/Elementwise.cpp
+    minitensor/ops/Math.cpp
+    minitensor/ops/Initializers.cpp
 )
 
 target_include_directories(minitensor
@@ -74,6 +77,13 @@ if(TEST_SOURCES)
         PRIVATE
             minitensor
             GTest::gtest_main
+    )
+
+    # Tests are part of the project and may include internal headers
+    # (e.g. core/ArrayIterator.hpp). Mirrors the library's own PRIVATE
+    # include path.
+    target_include_directories(minitensor_tests
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/minitensor
     )
 
     include(GoogleTest)
