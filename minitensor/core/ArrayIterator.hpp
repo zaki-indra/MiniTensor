@@ -54,8 +54,8 @@ class ArrayIteratorConfig {
     [[nodiscard]] ArrayIterator build() const;
 
   private:
-    Array*                    output_       = nullptr;
-    std::vector<const Array*> inputs_       {};
+    Array*                    output_ = nullptr;
+    std::vector<const Array*> inputs_{};
     bool                      check_dtype_  = true;
     bool                      check_shape_  = true;
     bool                      check_device_ = true;
@@ -77,27 +77,39 @@ class ArrayIterator {
     // lambdas are preferred when the body needs `if constexpr` on T.
     //
     // The kernel must be invocable for every DataType in {i32,i64,f32,f64}.
+
+    ArrayIterator()                     = delete;
+    ArrayIterator(const ArrayIterator&) = delete;
+    ArrayIterator(ArrayIterator&&)      = delete;
+
     template <class Kernel>
     void for_each(Kernel&& k);
 
-    [[nodiscard]] std::size_t numel()        const noexcept { return numel_; }
-    [[nodiscard]] DataType    common_dtype() const noexcept { return dtype_; }
-    [[nodiscard]] DeviceType  device()       const noexcept { return device_; }
-    [[nodiscard]] std::size_t n_inputs()     const noexcept { return inputs_.size(); }
+    [[nodiscard]] std::size_t numel() const noexcept {
+        return numel_;
+    }
+    [[nodiscard]] DataType common_dtype() const noexcept {
+        return dtype_;
+    }
+    [[nodiscard]] DeviceType device() const noexcept {
+        return device_;
+    }
+    [[nodiscard]] std::size_t n_inputs() const noexcept {
+        return inputs_.size();
+    }
 
   private:
     friend class ArrayIteratorConfig;
 
-    ArrayIterator(std::size_t numel, DataType dtype, DeviceType device, Array* output,
-                  std::vector<const Array*> inputs)
+    ArrayIterator(std::size_t numel, DataType dtype, DeviceType device, Array* output, std::vector<const Array*> inputs)
         : numel_(numel), dtype_(dtype), device_(device), output_(output), inputs_(std::move(inputs)) {
     }
 
-    std::size_t               numel_  = 0;
-    DataType                  dtype_  {};
-    DeviceType                device_ {};
+    std::size_t               numel_ = 0;
+    DataType                  dtype_{};
+    DeviceType                device_{};
     Array*                    output_ = nullptr;
-    std::vector<const Array*> inputs_ {};
+    std::vector<const Array*> inputs_{};
 };
 
 // ---------------------------------------------------------
@@ -108,7 +120,16 @@ void ArrayIterator::for_each(Kernel&& k) {
     if (numel_ == 0)
         return;
 
-    MT_DISPATCH_ALL_TYPES(dtype_, T, [&]() {
+    // MT_DISPATCH binds both a device tag (Dev) and a dtype alias (T)
+    // for the kernel scope. Today the CPU and CUDA branches generate
+    // identical code; when a CUDA backend lands, the loop body below
+    // can branch on `if constexpr (std::is_same_v<Dev, mt::CudaDevice>)`
+    // without touching any op site.
+    // `Dev` is intentionally unused in v0 — both CPU and CUDA dispatches
+    // fall through to the same serial loop. The seam is declared so a
+    // future CUDA backend slots in here, not at every op site. The macro
+    // marks DEVICE_TAG `[[maybe_unused]]` so this is warning-free.
+    MT_DISPATCH(device_, Dev, dtype_, T, [&]() {
         T* out = output_->data<T>();
         // Kernel arity is detected at compile time via std::is_invocable_v.
         // `if constexpr` ensures only the matching branch is instantiated,
@@ -128,9 +149,8 @@ void ArrayIterator::for_each(Kernel&& k) {
             for (std::size_t i = 0; i < numel_; ++i)
                 out[i] = k(a[i]);
         } else {
-            static_assert(sizeof(Kernel*) == 0,
-                          "ArrayIterator::for_each: kernel must be invocable as (T) or (T, T) "
-                          "for every supported dtype");
+            static_assert(sizeof(Kernel*) == 0, "ArrayIterator::for_each: kernel must be invocable as (T) or (T, T) "
+                                                "for every supported dtype");
         }
     });
 }

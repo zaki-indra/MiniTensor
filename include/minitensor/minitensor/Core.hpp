@@ -50,6 +50,16 @@ enum class DeviceType {
 };
 
 // ---------------------------------------------------------
+// Device Tag Types
+// ---------------------------------------------------------
+// Empty tag types used as the compile-time alias target inside device
+// dispatch macros. Kernel authors can specialize per device with
+//   if constexpr (std::is_same_v<Dev, mt::CpuDevice>) { ... }
+// while staying inside a single dispatch site.
+struct CpuDevice {};
+struct CudaDevice {};
+
+// ---------------------------------------------------------
 // DataType Type Traits
 // ---------------------------------------------------------
 template <DataType D>

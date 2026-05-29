@@ -62,6 +62,12 @@ class ArithmeticError final : public MTError<ArithmeticError> {
     static constexpr const char* error_name = "ArithmeticError";
 };
 
+class DispatchError final : public MTError<DispatchError> {
+  public:
+    using MTError::MTError;
+    static constexpr const char* error_name = "DispatchError";
+};
+
 // Concept used by both public templates and the internal throw helper.
 template <typename T>
 concept MTErrorConcept = std::derived_from<T, mt::MTError<T>>;
