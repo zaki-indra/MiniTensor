@@ -146,8 +146,12 @@ class Array {
     size_t     numel_   = 0;
     Shape      shape_;
     Shape      strides_;
-    DataType   dtype_;
-    DeviceType device_;
+    // Defaulted so default-constructed (undefined) Arrays have valid
+    // metadata reads. Without this, code that derives a child Array via
+    // `Array r(a.shape(), a.dtype(), a.device())` would propagate
+    // indeterminate enum values into the Storage allocator.
+    DataType   dtype_  = DataType::f32;
+    DeviceType device_ = DeviceType::cpu;
 
     // ---------------------------------------------------------
     // Data Storage

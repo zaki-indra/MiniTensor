@@ -2,17 +2,53 @@
 
 #include "Storage.hpp"
 
-#include <cstddef>
-#include <cstdlib>
 #include <minitensor/minitensor.hpp>
+#include <new>
 #include <utility>
 
 namespace mt
 {
-Storage::Storage(std::size_t size, DataType dtype, DeviceType device) : size_(size), dtype_(dtype), device_(device) {
-    std::size_t type_size = element_size(dtype);
-    std::size_t bytes     = size_ * type_size;
-    this->data_           = (bytes == 0) ? nullptr : ::operator new(bytes, std::align_val_t{64});
+
+namespace
+{
+
+// 64-byte alignment matches a typical cache line and the AVX-512 vector
+// width — chosen so SIMD elementwise kernels can rely on it. When CUDA
+// arrives, the CUDA allocator will pick its own alignment.
+constexpr std::size_t kCpuAlignment = 64;
+
+class CpuAllocator final : public AllocatorInterface {
+  public:
+    void* allocate(std::size_t bytes, std::size_t alignment) override {
+        if (bytes == 0)
+            return nullptr;
+        return ::operator new(bytes, std::align_val_t{alignment});
+    }
+    void deallocate(void* ptr, std::size_t /*bytes*/, std::size_t alignment) override {
+        if (ptr)
+            ::operator delete(ptr, std::align_val_t{alignment});
+    }
+};
+
+} // namespace
+
+AllocatorInterface& default_allocator(DeviceType device) {
+    static CpuAllocator cpu;
+    switch (device) {
+    case DeviceType::cpu:
+        return cpu;
+    case DeviceType::cuda:
+        throw mt::DeviceError("CUDA allocator is not available on this build.");
+    }
+    throw mt::DispatchError("Unknown device in default_allocator");
+}
+
+// ---------------------------------------------------------
+// Storage
+// ---------------------------------------------------------
+Storage::Storage(std::size_t numel, DataType dtype, DeviceType device) : size_(numel), dtype_(dtype), device_(device) {
+    std::size_t bytes = size_ * element_size(dtype_);
+    data_             = default_allocator(device_).allocate(bytes, kCpuAlignment);
 }
 
 Storage::Storage(Storage&& other) noexcept
@@ -22,8 +58,10 @@ Storage::Storage(Storage&& other) noexcept
 
 Storage& Storage::operator=(Storage&& other) noexcept {
     if (this != &other) {
-        if (data_)
-            ::operator delete(data_, std::align_val_t{64});
+        if (data_) {
+            std::size_t bytes = size_ * element_size(dtype_);
+            default_allocator(device_).deallocate(data_, bytes, kCpuAlignment);
+        }
         data_   = std::exchange(other.data_, nullptr);
         size_   = std::exchange(other.size_, 0);
         dtype_  = other.dtype_;
@@ -33,25 +71,26 @@ Storage& Storage::operator=(Storage&& other) noexcept {
 }
 
 Storage::~Storage() {
-    if (this->data_) {
-        ::operator delete(this->data_, std::align_val_t{64});
-        this->data_ = nullptr;
+    if (data_) {
+        std::size_t bytes = size_ * element_size(dtype_);
+        default_allocator(device_).deallocate(data_, bytes, kCpuAlignment);
     }
 }
 
 void* Storage::data() noexcept {
-    return this->data_;
+    return data_;
 }
 const void* Storage::data() const noexcept {
-    return this->data_;
+    return data_;
 }
 std::size_t Storage::size() const noexcept {
-    return this->size_;
+    return size_;
 }
 DataType Storage::dtype() const noexcept {
-    return this->dtype_;
+    return dtype_;
 }
 DeviceType Storage::device() const noexcept {
-    return this->device_;
+    return device_;
 }
+
 } // namespace mt
