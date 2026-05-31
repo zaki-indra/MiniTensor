@@ -91,3 +91,51 @@ if(TEST_SOURCES)
 else()
     message(WARNING "No test files found in the tests/ directory matching test_*.cpp")
 endif()
+
+# ─────────────────────────────────────────────
+# 4. Benchmarks (Using Google Benchmark)
+# ─────────────────────────────────────────────
+# Opt-in: the common build/test path should not pay for fetching and
+# compiling Google Benchmark. Enable with -DMT_BUILD_BENCHMARKS=ON.
+option(MT_BUILD_BENCHMARKS "Build the MiniTensor benchmark suite" OFF)
+
+if(MT_BUILD_BENCHMARKS)
+    # Benchmarks measure optimized code. A Debug (-O0) build reports noise.
+    if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
+        message(WARNING
+            "MT_BUILD_BENCHMARKS is ON but CMAKE_BUILD_TYPE is '${CMAKE_BUILD_TYPE}'. "
+            "Benchmark numbers are only meaningful in a Release build "
+            "(configure with -DCMAKE_BUILD_TYPE=Release).")
+    endif()
+
+    # Google Benchmark pulls in its own test suite and install rules by
+    # default; we want neither.
+    set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+    set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+    set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "" FORCE)
+
+    FetchContent_Declare(
+        benchmark
+        URL https://github.com/google/benchmark/archive/refs/tags/v1.8.5.zip
+    )
+    FetchContent_MakeAvailable(benchmark)
+
+    file(GLOB_RECURSE BENCHMARK_SOURCES CONFIGURE_DEPENDS "benchmarks/bench_*.cpp")
+
+    if(BENCHMARK_SOURCES)
+        add_executable(minitensor_benchmarks ${BENCHMARK_SOURCES})
+
+        target_link_libraries(minitensor_benchmarks
+            PRIVATE
+                minitensor
+                benchmark::benchmark_main
+        )
+
+        # Benchmarks may reach into internal headers, same as tests.
+        target_include_directories(minitensor_benchmarks
+            PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/minitensor
+        )
+    else()
+        message(WARNING "MT_BUILD_BENCHMARKS is ON but no benchmarks/bench_*.cpp files were found.")
+    endif()
+endif()
