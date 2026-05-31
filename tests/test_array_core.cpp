@@ -19,27 +19,27 @@ TEST(ArrayCoreTest, DefaultConstructorLeavesArrayUndefined) {
 TEST(ArrayCoreTest, VectorConstructorInfersShapeAndType) {
     std::vector<float> data_float{1.0f, 2.0f, 3.0f};
     mt::Array          t(data_float);
-    expect_defined(t, {3}, {1}, 3, mt::DataType::f32);
+    expect_defined(t, {3}, {1}, 3, mt::EDataType::f32);
 
     std::vector<double> data_double{1.0, 2.0, 3.0, 4.0, 5.0};
     mt::Array           t_double(data_double);
-    expect_defined(t_double, {5}, {1}, 5, mt::DataType::f64);
+    expect_defined(t_double, {5}, {1}, 5, mt::EDataType::f64);
 
     std::vector<int> data_int{1, 2, 3, 4};
     mt::Array        t_int(data_int);
-    expect_defined(t_int, {4}, {1}, 4, mt::DataType::i32);
+    expect_defined(t_int, {4}, {1}, 4, mt::EDataType::i32);
 
     std::vector<long> data_long{10L, 20L, 30L};
     mt::Array         t_long(data_long);
 #if defined(_WIN32)
-    expect_defined(t_long, {3}, {1}, 3, mt::DataType::i32);
+    expect_defined(t_long, {3}, {1}, 3, mt::EDataType::i32);
 #else
-    expect_defined(t_long, {3}, {1}, 3, mt::DataType::i64);
+    expect_defined(t_long, {3}, {1}, 3, mt::EDataType::i64);
 #endif
 
     std::vector<long long> data_long2{10L, 20L, 30L};
     mt::Array              t_long2(data_long2);
-    expect_defined(t_long2, {3}, {1}, 3, mt::DataType::i64);
+    expect_defined(t_long2, {3}, {1}, 3, mt::EDataType::i64);
 }
 
 TEST(ArrayCoreTest, VectorConstructorPreservesValues) {
@@ -53,7 +53,7 @@ TEST(ArrayCoreTest, VectorConstructorPreservesValues) {
 TEST(ArrayCoreTest, DataAndShapeConstructorInitializesCorrectly) {
     std::vector<int32_t> data{1, 2, 3, 4, 5, 6};
     mt::Array            t(std::span<const int32_t>(data), {2, 3});
-    expect_defined(t, {2, 3}, {3, 1}, 6, mt::DataType::i32);
+    expect_defined(t, {2, 3}, {3, 1}, 6, mt::EDataType::i32);
     EXPECT_EQ(t.at<int32_t>({0, 0}), 1);
     EXPECT_EQ(t.at<int32_t>({1, 2}), 6);
 }
@@ -133,7 +133,7 @@ TEST(ArrayCoreTest, OnesFactoryAllocatesCorrectMemory) {
 
 TEST(ArrayCoreTest, FullFactoryAllocatesCorrectMemory) {
     mt::Array t = mt::full({2, 2}, 7);
-    expect_defined(t, {2, 2}, {2, 1}, 4, mt::DataType::i32);
+    expect_defined(t, {2, 2}, {2, 1}, 4, mt::EDataType::i32);
     EXPECT_EQ(t.at<int32_t>({0, 0}), 7);
     EXPECT_EQ(t.at<int32_t>({1, 1}), 7);
 }
@@ -146,15 +146,15 @@ TEST(ArrayCoreTest, CastConvertsDataTypes) {
     mt::Array           a(std::span<const double>(double_data), {3});
 
     // Cast from f64 to i32
-    mt::Array b = a.cast(mt::DataType::i32);
-    EXPECT_EQ(b.dtype(), mt::DataType::i32);
+    mt::Array b = a.cast(mt::EDataType::i32);
+    EXPECT_EQ(b.dtype(), mt::EDataType::i32);
     EXPECT_EQ(b.at<int32_t>({0}), 1);
     EXPECT_EQ(b.at<int32_t>({1}), -2);
     EXPECT_EQ(b.at<int32_t>({2}), 3);
 
     // Cast from i32 to f32
-    mt::Array c = b.cast(mt::DataType::f32);
-    EXPECT_EQ(c.dtype(), mt::DataType::f32);
+    mt::Array c = b.cast(mt::EDataType::f32);
+    EXPECT_EQ(c.dtype(), mt::EDataType::f32);
     EXPECT_FLOAT_EQ(c.at<float>({0}), 1.0f);
     EXPECT_FLOAT_EQ(c.at<float>({1}), -2.0f);
     EXPECT_FLOAT_EQ(c.at<float>({2}), 3.0f);
@@ -164,14 +164,14 @@ TEST(ArrayCoreTest, ToCudaThrowsUnsupportedException) {
     mt::Array a = mt::zeros({3, 3});
 
     // Identity transfer (CPU -> CPU) should return same device
-    mt::Array b = a.to(mt::DeviceType::cpu);
-    EXPECT_EQ(b.device(), mt::DeviceType::cpu);
+    mt::Array b = a.to(mt::EDeviceType::cpu);
+    EXPECT_EQ(b.device(), mt::EDeviceType::cpu);
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-result"
     // Transfer to CUDA must throw exception as it's unsupported
-    EXPECT_THROW(a.to(mt::DeviceType::cuda), std::runtime_error);
-    EXPECT_EQ(a.device(), mt::DeviceType::cpu);
+    EXPECT_THROW(a.to(mt::EDeviceType::cuda), std::runtime_error);
+    EXPECT_EQ(a.device(), mt::EDeviceType::cpu);
 #pragma GCC diagnostic pop
 }
 
@@ -194,7 +194,7 @@ TEST(ArrayCoreTest, Handles0DAndEmptyTensors) {
 }
 
 TEST(ArrayCoreTest, TypeAccessThrowsOnMismatch) {
-    mt::Array a = mt::ones({2, 2}, mt::DataType::i32);
+    mt::Array a = mt::ones({2, 2}, mt::EDataType::i32);
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-result"

@@ -58,14 +58,14 @@ bool Array::shapes_equal(const Shape& a, const Shape& b) noexcept {
 // ---------------------------------------------------------
 // Constructors
 // ---------------------------------------------------------
-Array::Array(Shape shape, DataType dtype, DeviceType device)
+Array::Array(Shape shape, EDataType dtype, EDeviceType device)
     : defined_(true), shape_(std::move(shape)), dtype_(dtype), device_(device) {
     numel_ = shape_product(shape_);
     compute_strides();
     allocate_storage();
 }
 
-Array::Array(const void* data, Shape shape, DataType dtype, DeviceType device)
+Array::Array(const void* data, Shape shape, EDataType dtype, EDeviceType device)
     : defined_(true), shape_(std::move(shape)), dtype_(dtype), device_(device) {
     numel_ = shape_product(shape_);
     compute_strides();
@@ -84,7 +84,7 @@ Array Array::clone() const {
     return cloned;
 }
 
-Array Array::cast(DataType new_dtype) const {
+Array Array::cast(EDataType new_dtype) const {
     if (!defined())
         return Array();
     Array casted(shape_, new_dtype, device_);
@@ -99,13 +99,13 @@ Array Array::cast(DataType new_dtype) const {
     return casted;
 }
 
-Array Array::to(DeviceType target_device) const {
+Array Array::to(EDeviceType target_device) const {
     if (!defined())
         return Array();
     if (this->device() == target_device) {
         return *this;
     }
-    if (target_device == DeviceType::cuda) {
+    if (target_device == EDeviceType::cuda) {
         throw DeviceError("CUDA device is not supported on this platform.");
     }
     Array copied(shape_, dtype_, target_device);

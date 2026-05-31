@@ -61,9 +61,9 @@ TEST(ArrayIteratorTest, BuildThrowsOnShapeMismatch) {
 }
 
 TEST(ArrayIteratorTest, BuildThrowsOnDtypeMismatch) {
-    mt::Array out = mt::zeros({3}, mt::DataType::f32);
-    mt::Array a   = mt::ones({3}, mt::DataType::f32);
-    mt::Array b   = mt::ones({3}, mt::DataType::i32);
+    mt::Array out = mt::zeros({3}, mt::EDataType::f32);
+    mt::Array a   = mt::ones({3}, mt::EDataType::f32);
+    mt::Array b   = mt::ones({3}, mt::EDataType::i32);
     EXPECT_THROW({ (void)mt::ArrayIteratorConfig().add_output(out).add_input(a).add_input(b).build(); },
                  mt::DTypeError);
 }
@@ -91,14 +91,14 @@ TEST(ArrayIteratorTest, BuildSucceedsWithTwoInputs) {
 // =========================================================
 
 TEST(ArrayIteratorTest, AccessorsReflectCommonMetadata) {
-    mt::Array out  = mt::zeros({4, 5}, mt::DataType::i64);
-    mt::Array a    = mt::ones({4, 5}, mt::DataType::i64);
-    mt::Array b    = mt::ones({4, 5}, mt::DataType::i64);
+    mt::Array out  = mt::zeros({4, 5}, mt::EDataType::i64);
+    mt::Array a    = mt::ones({4, 5}, mt::EDataType::i64);
+    mt::Array b    = mt::ones({4, 5}, mt::EDataType::i64);
     auto      iter = mt::ArrayIteratorConfig().add_output(out).add_input(a).add_input(b).build();
 
     EXPECT_EQ(iter.numel(), 20u);
-    EXPECT_EQ(iter.common_dtype(), mt::DataType::i64);
-    EXPECT_EQ(iter.device(), mt::DeviceType::cpu);
+    EXPECT_EQ(iter.common_dtype(), mt::EDataType::i64);
+    EXPECT_EQ(iter.device(), mt::EDeviceType::cpu);
     EXPECT_EQ(iter.n_inputs(), 2u);
 }
 
@@ -113,7 +113,7 @@ static mt::Array make_array(const std::vector<T>& v) {
 
 TEST(ArrayIteratorTest, UnaryKernelRunsOverAllElements_f32) {
     mt::Array a   = make_array<float>({1.0f, 2.0f, 3.0f, 4.0f});
-    mt::Array out = mt::zeros({4}, mt::DataType::f32);
+    mt::Array out = mt::zeros({4}, mt::EDataType::f32);
     mt::ArrayIteratorConfig().add_output(out).add_input(a).build().for_each(
       []<typename T>(T x) -> T { return x * static_cast<T>(2); });
     EXPECT_FLOAT_EQ(out.at<float>({0}), 2.0f);
@@ -122,7 +122,7 @@ TEST(ArrayIteratorTest, UnaryKernelRunsOverAllElements_f32) {
 
 TEST(ArrayIteratorTest, UnaryKernelWorksForI32) {
     mt::Array a   = make_array<int32_t>({1, 2, 3, 4});
-    mt::Array out = mt::zeros({4}, mt::DataType::i32);
+    mt::Array out = mt::zeros({4}, mt::EDataType::i32);
     mt::ArrayIteratorConfig().add_output(out).add_input(a).build().for_each(
       []<typename T>(T x) -> T { return x + static_cast<T>(10); });
     EXPECT_EQ(out.at<int32_t>({0}), 11);
@@ -131,7 +131,7 @@ TEST(ArrayIteratorTest, UnaryKernelWorksForI32) {
 
 TEST(ArrayIteratorTest, UnaryKernelWorksForI64) {
     mt::Array a   = make_array<long long>({1LL, 2LL, 3LL});
-    mt::Array out = mt::zeros({3}, mt::DataType::i64);
+    mt::Array out = mt::zeros({3}, mt::EDataType::i64);
     mt::ArrayIteratorConfig().add_output(out).add_input(a).build().for_each(
       []<typename T>(T x) -> T { return x * x; });
     EXPECT_EQ(out.at<int64_t>({2}), 9);
@@ -139,7 +139,7 @@ TEST(ArrayIteratorTest, UnaryKernelWorksForI64) {
 
 TEST(ArrayIteratorTest, UnaryKernelWorksForF64) {
     mt::Array a   = make_array<double>({1.5, 2.5});
-    mt::Array out = mt::zeros({2}, mt::DataType::f64);
+    mt::Array out = mt::zeros({2}, mt::EDataType::f64);
     mt::ArrayIteratorConfig().add_output(out).add_input(a).build().for_each(
       []<typename T>(T x) -> T { return x + static_cast<T>(0.5); });
     EXPECT_DOUBLE_EQ(out.at<double>({0}), 2.0);
@@ -149,7 +149,7 @@ TEST(ArrayIteratorTest, UnaryKernelWorksForF64) {
 TEST(ArrayIteratorTest, BinaryKernelComputesElementwise) {
     mt::Array a   = make_array<float>({1.0f, 2.0f, 3.0f});
     mt::Array b   = make_array<float>({10.0f, 20.0f, 30.0f});
-    mt::Array out = mt::zeros({3}, mt::DataType::f32);
+    mt::Array out = mt::zeros({3}, mt::EDataType::f32);
     mt::ArrayIteratorConfig().add_output(out).add_input(a).add_input(b).build().for_each(
       []<typename T>(T x, T y) -> T { return x + y; });
     EXPECT_FLOAT_EQ(out.at<float>({0}), 11.0f);
@@ -164,7 +164,7 @@ TEST(ArrayIteratorTest, BinaryKernelComputesElementwise) {
 TEST(ArrayIteratorTest, GenericLambdaKernelIsAccepted) {
     mt::Array a   = make_array<int32_t>({1, 2, 3});
     mt::Array b   = make_array<int32_t>({4, 5, 6});
-    mt::Array out = mt::zeros({3}, mt::DataType::i32);
+    mt::Array out = mt::zeros({3}, mt::EDataType::i32);
     // Generic lambda (auto-deduced) instead of a template lambda.
     mt::ArrayIteratorConfig().add_output(out).add_input(a).add_input(b).build().for_each(
       [](auto x, auto y) { return x * y; });
@@ -196,7 +196,7 @@ TEST(ArrayIteratorTest, KernelCanBranchOnTypeViaIfConstexpr) {
 
 TEST(ArrayIteratorTest, ScalarValueViaCaptureWorks) {
     mt::Array a     = make_array<float>({1.0f, 2.0f, 3.0f});
-    mt::Array out   = mt::zeros({3}, mt::DataType::f32);
+    mt::Array out   = mt::zeros({3}, mt::EDataType::f32);
     double    scale = 3.0;
     mt::ArrayIteratorConfig().add_output(out).add_input(a).build().for_each(
       [scale]<typename T>(T x) -> T { return x * static_cast<T>(scale); });
@@ -223,7 +223,7 @@ TEST(ArrayIteratorTest, EmptyArrayIsNoOp) {
 
 TEST(ArrayIteratorTest, ExceptionThrownFromKernelPropagates) {
     mt::Array a   = make_array<float>({1.0f, 2.0f});
-    mt::Array out = mt::zeros({2}, mt::DataType::f32);
+    mt::Array out = mt::zeros({2}, mt::EDataType::f32);
     EXPECT_THROW(
       {
           mt::ArrayIteratorConfig().add_output(out).add_input(a).build().for_each(
@@ -251,7 +251,7 @@ TEST(ArrayIteratorTest, OutputAliasedToInputIsValidInPlace) {
 
 TEST(ArrayIteratorTest, BinaryKernelWithOneInputThrowsLogicError) {
     mt::Array a   = make_array<float>({1.0f, 2.0f});
-    mt::Array out = mt::zeros({2}, mt::DataType::f32);
+    mt::Array out = mt::zeros({2}, mt::EDataType::f32);
     auto      iter = mt::ArrayIteratorConfig().add_output(out).add_input(a).build();
     // Two-parameter kernel but only one input configured.
     EXPECT_THROW({ iter.for_each([]<typename T>(T x, T y) -> T { return x + y; }); }, std::logic_error);
@@ -260,7 +260,7 @@ TEST(ArrayIteratorTest, BinaryKernelWithOneInputThrowsLogicError) {
 TEST(ArrayIteratorTest, UnaryKernelWithTwoInputsThrowsLogicError) {
     mt::Array a   = make_array<float>({1.0f, 2.0f});
     mt::Array b   = make_array<float>({3.0f, 4.0f});
-    mt::Array out = mt::zeros({2}, mt::DataType::f32);
+    mt::Array out = mt::zeros({2}, mt::EDataType::f32);
     auto      iter = mt::ArrayIteratorConfig().add_output(out).add_input(a).add_input(b).build();
     EXPECT_THROW({ iter.for_each([]<typename T>(T x) -> T { return x; }); }, std::logic_error);
 }
@@ -283,8 +283,8 @@ TEST(ArrayIteratorTest, DisablingShapeCheckAllowsBuildWithDifferentShapes) {
 }
 
 TEST(ArrayIteratorTest, DisablingDtypeCheckAllowsBuildWithDifferentDtypes) {
-    mt::Array out = mt::zeros({3}, mt::DataType::f32);
-    mt::Array a   = mt::ones({3}, mt::DataType::i32);
+    mt::Array out = mt::zeros({3}, mt::EDataType::f32);
+    mt::Array a   = mt::ones({3}, mt::EDataType::i32);
     EXPECT_NO_THROW({
         [[maybe_unused]] auto iter =
           mt::ArrayIteratorConfig().add_output(out).add_input(a).check_same_dtype(false).build();

@@ -37,14 +37,14 @@ inline std::string format_msg(Args&&... args) {
 // ---------------------------------------------------------
 // Basic Types
 // ---------------------------------------------------------
-enum class DataType {
+enum class EDataType {
     i32,
     i64,
     f32,
     f64,
 };
 
-enum class DeviceType {
+enum class EDeviceType {
     cpu,
     cuda,
 };
@@ -62,27 +62,27 @@ struct CudaDevice {};
 // ---------------------------------------------------------
 // DataType Type Traits
 // ---------------------------------------------------------
-template <DataType D>
+template <EDataType D>
 struct DataTypeToType;
 
 template <>
-struct DataTypeToType<DataType::i32> {
+struct DataTypeToType<EDataType::i32> {
     using type = int32_t;
 };
 template <>
-struct DataTypeToType<DataType::i64> {
+struct DataTypeToType<EDataType::i64> {
     using type = int64_t;
 };
 template <>
-struct DataTypeToType<DataType::f32> {
+struct DataTypeToType<EDataType::f32> {
     using type = float;
 };
 template <>
-struct DataTypeToType<DataType::f64> {
+struct DataTypeToType<EDataType::f64> {
     using type = double;
 };
 
-template <DataType D>
+template <EDataType D>
 using DataTypeToType_t = typename DataTypeToType<D>::type;
 
 template <typename T>
@@ -90,34 +90,34 @@ struct TypeToDataType;
 
 template <>
 struct TypeToDataType<int> {
-    static constexpr DataType value = DataType::i32;
+    static constexpr EDataType value = EDataType::i32;
 };
 template <>
 struct TypeToDataType<long> {
-    static constexpr DataType value = sizeof(long) == 8 ? DataType::i64 : DataType::i32;
+    static constexpr EDataType value = sizeof(long) == 8 ? EDataType::i64 : EDataType::i32;
 };
 template <>
 struct TypeToDataType<long long> {
-    static constexpr DataType value = DataType::i64;
+    static constexpr EDataType value = EDataType::i64;
 };
 template <>
 struct TypeToDataType<float> {
-    static constexpr DataType value = DataType::f32;
+    static constexpr EDataType value = EDataType::f32;
 };
 template <>
 struct TypeToDataType<double> {
-    static constexpr DataType value = DataType::f64;
+    static constexpr EDataType value = EDataType::f64;
 };
 
-constexpr std::size_t element_size(DataType dtype) noexcept {
+constexpr std::size_t element_size(EDataType dtype) noexcept {
     switch (dtype) {
-    case DataType::i32:
+    case EDataType::i32:
         return 4;
-    case DataType::i64:
+    case EDataType::i64:
         return 8;
-    case DataType::f32:
+    case EDataType::f32:
         return 4;
-    case DataType::f64:
+    case EDataType::f64:
         return 8;
     }
     return 0;
@@ -125,8 +125,8 @@ constexpr std::size_t element_size(DataType dtype) noexcept {
 
 using Shape = std::vector<std::size_t>;
 
-std::ostream& operator<<(std::ostream& os, DataType dtype);
-std::ostream& operator<<(std::ostream& os, DeviceType device);
+std::ostream& operator<<(std::ostream& os, EDataType dtype);
+std::ostream& operator<<(std::ostream& os, EDeviceType device);
 std::ostream& operator<<(std::ostream& os, const Shape& shape);
 
 // ---------------------------------------------------------
@@ -150,8 +150,8 @@ class Array {
     // metadata reads. Without this, code that derives a child Array via
     // `Array r(a.shape(), a.dtype(), a.device())` would propagate
     // indeterminate enum values into the Storage allocator.
-    DataType   dtype_  = DataType::f32;
-    DeviceType device_ = DeviceType::cpu;
+    EDataType   dtype_  = EDataType::f32;
+    EDeviceType device_ = EDeviceType::cpu;
 
     // ---------------------------------------------------------
     // Data Storage
@@ -199,12 +199,12 @@ class Array {
     }
 
     // Internal generic constructor
-    Array(Shape shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
-    Array(const void* data, Shape shape, DataType dtype, DeviceType device = DeviceType::cpu);
+    Array(Shape shape, EDataType dtype = EDataType::f32, EDeviceType device = EDeviceType::cpu);
+    Array(const void* data, Shape shape, EDataType dtype, EDeviceType device = EDeviceType::cpu);
 
     // Type-Safe Templated Constructors
     template <typename T>
-    Array(std::span<const T> data, Shape shape, DeviceType device = DeviceType::cpu)
+    Array(std::span<const T> data, Shape shape, EDeviceType device = EDeviceType::cpu)
         : defined_(true), shape_(std::move(shape)), dtype_(TypeToDataType<T>::value), device_(device) {
         numel_ = shape_product(shape_);
         compute_strides();
@@ -213,7 +213,7 @@ class Array {
     }
 
     template <typename T>
-    explicit Array(const std::vector<T>& data, DeviceType device = DeviceType::cpu)
+    explicit Array(const std::vector<T>& data, EDeviceType device = EDeviceType::cpu)
         : Array(std::span<const T>(data), {data.size()}, device) {
     }
 
@@ -235,10 +235,10 @@ class Array {
     [[nodiscard]] std::size_t numel() const noexcept {
         return numel_;
     }
-    [[nodiscard]] DataType dtype() const noexcept {
+    [[nodiscard]] EDataType dtype() const noexcept {
         return dtype_;
     }
-    [[nodiscard]] DeviceType device() const noexcept {
+    [[nodiscard]] EDeviceType device() const noexcept {
         return device_;
     }
 
@@ -309,21 +309,21 @@ class Array {
     // Clone, cast, and move device
     // ---------------------------------------------------------
     [[nodiscard]] Array clone() const;
-    [[nodiscard]] Array cast(DataType dtype) const;
-    [[nodiscard]] Array to(DeviceType device) const;
+    [[nodiscard]] Array cast(EDataType dtype) const;
+    [[nodiscard]] Array to(EDeviceType device) const;
 
     // ---------------------------------------------------------
     // Static Initializers
     // ---------------------------------------------------------
-    [[nodiscard]] static Array zeros(const Shape& shape, DataType dtype = DataType::f32,
-                                     DeviceType device = DeviceType::cpu);
-    [[nodiscard]] static Array ones(const Shape& shape, DataType dtype = DataType::f32,
-                                    DeviceType device = DeviceType::cpu);
-    [[nodiscard]] static Array randn(const Shape& shape, DataType dtype = DataType::f32,
-                                     DeviceType device = DeviceType::cpu);
+    [[nodiscard]] static Array zeros(const Shape& shape, EDataType dtype = EDataType::f32,
+                                     EDeviceType device = EDeviceType::cpu);
+    [[nodiscard]] static Array ones(const Shape& shape, EDataType dtype = EDataType::f32,
+                                    EDeviceType device = EDeviceType::cpu);
+    [[nodiscard]] static Array randn(const Shape& shape, EDataType dtype = EDataType::f32,
+                                     EDeviceType device = EDeviceType::cpu);
     template <typename T>
-    [[nodiscard]] static Array full(const Shape& shape, T fill_value, DataType dtype = TypeToDataType<T>::value,
-                                    DeviceType device = DeviceType::cpu);
+    [[nodiscard]] static Array full(const Shape& shape, T fill_value, EDataType dtype = TypeToDataType<T>::value,
+                                    EDeviceType device = EDeviceType::cpu);
 
     // ---------------------------------------------------------
     // Array Manipulation
@@ -371,11 +371,11 @@ class Array {
 [[nodiscard]] Array divide(const Array& a, const Array& b);
 
 // Free factory functions
-[[nodiscard]] Array zeros(const Shape& shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
-[[nodiscard]] Array ones(const Shape& shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
-[[nodiscard]] Array randn(const Shape& shape, DataType dtype = DataType::f32, DeviceType device = DeviceType::cpu);
+[[nodiscard]] Array zeros(const Shape& shape, EDataType dtype = EDataType::f32, EDeviceType device = EDeviceType::cpu);
+[[nodiscard]] Array ones(const Shape& shape, EDataType dtype = EDataType::f32, EDeviceType device = EDeviceType::cpu);
+[[nodiscard]] Array randn(const Shape& shape, EDataType dtype = EDataType::f32, EDeviceType device = EDeviceType::cpu);
 template <typename T>
-[[nodiscard]] Array full(const Shape& shape, T fill_value, DataType dtype = TypeToDataType<T>::value,
-                         DeviceType device = DeviceType::cpu);
+[[nodiscard]] Array full(const Shape& shape, T fill_value, EDataType dtype = TypeToDataType<T>::value,
+                         EDeviceType device = EDeviceType::cpu);
 
 } // namespace mt

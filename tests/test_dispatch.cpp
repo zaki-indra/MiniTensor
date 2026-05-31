@@ -21,13 +21,13 @@
 
 TEST(MTDispatchTest, CpuDispatchAliasesCpuDeviceTag) {
     bool is_cpu = false;
-    MT_DISPATCH(mt::DeviceType::cpu, Dev, mt::DataType::f32, T, [&]() { is_cpu = std::is_same_v<Dev, mt::CpuDevice>; });
+    MT_DISPATCH(mt::EDeviceType::cpu, Dev, mt::EDataType::f32, T, [&]() { is_cpu = std::is_same_v<Dev, mt::CpuDevice>; });
     EXPECT_TRUE(is_cpu);
 }
 
 TEST(MTDispatchTest, CudaDispatchAliasesCudaDeviceTag) {
     bool is_cuda = false;
-    MT_DISPATCH(mt::DeviceType::cuda, Dev, mt::DataType::f32, T,
+    MT_DISPATCH(mt::EDeviceType::cuda, Dev, mt::EDataType::f32, T,
                 [&]() { is_cuda = std::is_same_v<Dev, mt::CudaDevice>; });
     EXPECT_TRUE(is_cuda);
 }
@@ -38,26 +38,26 @@ TEST(MTDispatchTest, CudaDispatchAliasesCudaDeviceTag) {
 
 TEST(MTDispatchTest, DTypeAliasesCorrectlyForEachSupportedType) {
     bool match_f32 = false;
-    MT_DISPATCH(mt::DeviceType::cpu, Dev, mt::DataType::f32, T, [&]() { match_f32 = std::is_same_v<T, float>; });
+    MT_DISPATCH(mt::EDeviceType::cpu, Dev, mt::EDataType::f32, T, [&]() { match_f32 = std::is_same_v<T, float>; });
     EXPECT_TRUE(match_f32);
 
     bool match_f64 = false;
-    MT_DISPATCH(mt::DeviceType::cpu, Dev, mt::DataType::f64, T, [&]() { match_f64 = std::is_same_v<T, double>; });
+    MT_DISPATCH(mt::EDeviceType::cpu, Dev, mt::EDataType::f64, T, [&]() { match_f64 = std::is_same_v<T, double>; });
     EXPECT_TRUE(match_f64);
 
     bool match_i32 = false;
-    MT_DISPATCH(mt::DeviceType::cpu, Dev, mt::DataType::i32, T, [&]() { match_i32 = std::is_same_v<T, int32_t>; });
+    MT_DISPATCH(mt::EDeviceType::cpu, Dev, mt::EDataType::i32, T, [&]() { match_i32 = std::is_same_v<T, int32_t>; });
     EXPECT_TRUE(match_i32);
 
     bool match_i64 = false;
-    MT_DISPATCH(mt::DeviceType::cpu, Dev, mt::DataType::i64, T, [&]() { match_i64 = std::is_same_v<T, int64_t>; });
+    MT_DISPATCH(mt::EDeviceType::cpu, Dev, mt::EDataType::i64, T, [&]() { match_i64 = std::is_same_v<T, int64_t>; });
     EXPECT_TRUE(match_i64);
 }
 
 TEST(MTDispatchTest, DTypeBindingWorksUnderCudaDeviceToo) {
     // Verifies the dtype inner-dispatch isn't skipped on the cuda branch.
     bool match_i64 = false;
-    MT_DISPATCH(mt::DeviceType::cuda, Dev, mt::DataType::i64, T, [&]() { match_i64 = std::is_same_v<T, int64_t>; });
+    MT_DISPATCH(mt::EDeviceType::cuda, Dev, mt::EDataType::i64, T, [&]() { match_i64 = std::is_same_v<T, int64_t>; });
     EXPECT_TRUE(match_i64);
 }
 
@@ -67,7 +67,7 @@ TEST(MTDispatchTest, DTypeBindingWorksUnderCudaDeviceToo) {
 
 TEST(MTDispatchTest, BodyCanBranchOnDeviceTagViaIfConstexpr) {
     std::string result;
-    MT_DISPATCH(mt::DeviceType::cpu, Dev, mt::DataType::f32, T, [&]() {
+    MT_DISPATCH(mt::EDeviceType::cpu, Dev, mt::EDataType::f32, T, [&]() {
         if constexpr (std::is_same_v<Dev, mt::CpuDevice>)
             result = "cpu";
         else
@@ -81,7 +81,7 @@ TEST(MTDispatchTest, BodyCanReadBothAliasesInOneExpression) {
     // Dev to be in scope. Both must hold simultaneously in the body.
     std::size_t reported_size = 0;
     bool        reported_cpu  = false;
-    MT_DISPATCH(mt::DeviceType::cpu, Dev, mt::DataType::i64, T, [&]() {
+    MT_DISPATCH(mt::EDeviceType::cpu, Dev, mt::EDataType::i64, T, [&]() {
         reported_size = sizeof(T);
         reported_cpu  = std::is_same_v<Dev, mt::CpuDevice>;
     });
@@ -95,7 +95,7 @@ TEST(MTDispatchTest, BodyCanReadBothAliasesInOneExpression) {
 
 TEST(MTDispatchTest, BodyReturnValueIsForwardedThroughBothLayers) {
     int byte_count =
-      MT_DISPATCH(mt::DeviceType::cpu, Dev, mt::DataType::i32, T, [&]() -> int { return static_cast<int>(sizeof(T)); });
+      MT_DISPATCH(mt::EDeviceType::cpu, Dev, mt::EDataType::i32, T, [&]() -> int { return static_cast<int>(sizeof(T)); });
     EXPECT_EQ(byte_count, 4);
 }
 
@@ -104,18 +104,18 @@ TEST(MTDispatchTest, BodyReturnValueIsForwardedThroughBothLayers) {
 // =========================================================
 
 TEST(MTDispatchTest, InvalidDeviceThrowsDispatchError) {
-    auto bogus = static_cast<mt::DeviceType>(99);
-    EXPECT_THROW(MT_DISPATCH(bogus, Dev, mt::DataType::f32, T, [&]() {}), mt::DispatchError);
+    auto bogus = static_cast<mt::EDeviceType>(99);
+    EXPECT_THROW(MT_DISPATCH(bogus, Dev, mt::EDataType::f32, T, [&]() {}), mt::DispatchError);
 }
 
 TEST(MTDispatchTest, InvalidDTypeThrowsDispatchError) {
-    auto bogus = static_cast<mt::DataType>(99);
-    EXPECT_THROW(MT_DISPATCH(mt::DeviceType::cpu, Dev, bogus, T, [&]() {}), mt::DispatchError);
+    auto bogus = static_cast<mt::EDataType>(99);
+    EXPECT_THROW(MT_DISPATCH(mt::EDeviceType::cpu, Dev, bogus, T, [&]() {}), mt::DispatchError);
 }
 
 TEST(MTDispatchTest, InvalidDTypeUnderCudaAlsoThrows) {
     // Confirms the inner dispatch's default actually runs on both branches,
     // not just the cpu one.
-    auto bogus = static_cast<mt::DataType>(99);
-    EXPECT_THROW(MT_DISPATCH(mt::DeviceType::cuda, Dev, bogus, T, [&]() {}), mt::DispatchError);
+    auto bogus = static_cast<mt::EDataType>(99);
+    EXPECT_THROW(MT_DISPATCH(mt::EDeviceType::cuda, Dev, bogus, T, [&]() {}), mt::DispatchError);
 }

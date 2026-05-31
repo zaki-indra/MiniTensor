@@ -4,30 +4,30 @@
 
 namespace mt {
 
-std::ostream& operator<<(std::ostream& os, DataType dtype) {
+std::ostream& operator<<(std::ostream& os, EDataType dtype) {
     switch (dtype) {
-    case DataType::i32:
+    case EDataType::i32:
         os << "int32";
         break;
-    case DataType::i64:
+    case EDataType::i64:
         os << "int64";
         break;
-    case DataType::f32:
+    case EDataType::f32:
         os << "float32";
         break;
-    case DataType::f64:
+    case EDataType::f64:
         os << "float64";
         break;
     }
     return os;
 }
 
-std::ostream& operator<<(std::ostream& os, DeviceType device) {
+std::ostream& operator<<(std::ostream& os, EDeviceType device) {
     switch (device) {
-    case DeviceType::cpu:
+    case EDeviceType::cpu:
         os << "CPU";
         break;
-    case DeviceType::cuda:
+    case EDeviceType::cuda:
         os << "CUDA";
         break;
     }

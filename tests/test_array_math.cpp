@@ -69,7 +69,7 @@ TEST(ArrayMathTest, MathOperationsPreserveDoublePrecision) {
     mt::Array           a(std::span<const double>(data), {3});
 
     mt::Array b = a + 2.0;
-    EXPECT_EQ(b.dtype(), mt::DataType::f64);
+    EXPECT_EQ(b.dtype(), mt::EDataType::f64);
     EXPECT_DOUBLE_EQ(b.at<double>({0}), 3.5);
     EXPECT_DOUBLE_EQ(b.at<double>({2}), 5.5);
 }
@@ -80,7 +80,7 @@ TEST(ArrayMathTest, MathOperationsPreserveIntegerPrecision) {
 
     // Scaler passed as double, safely truncates inside dispatch
     mt::Array b = a * 2.0;
-    EXPECT_EQ(b.dtype(), mt::DataType::i32);
+    EXPECT_EQ(b.dtype(), mt::EDataType::i32);
     EXPECT_EQ(b.at<int32_t>({0}), 20);
     EXPECT_EQ(b.at<int32_t>({2}), 60);
 }
@@ -93,7 +93,7 @@ TEST(ArrayMathTest, SineCalculatesCorrectly) {
     mt::Array           a(std::span<const double>(data), {3});
     mt::Array           s = mt::sin(a);
 
-    EXPECT_EQ(s.dtype(), mt::DataType::f64);
+    EXPECT_EQ(s.dtype(), mt::EDataType::f64);
     EXPECT_NEAR(s.at<double>({0}), 0.0, 1e-7);
     EXPECT_NEAR(s.at<double>({1}), 1.0, 1e-7);
     EXPECT_NEAR(s.at<double>({2}), 0.0, 1e-7);

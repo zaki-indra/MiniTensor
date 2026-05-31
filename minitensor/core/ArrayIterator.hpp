@@ -88,10 +88,10 @@ class ArrayIterator {
     [[nodiscard]] std::size_t numel() const noexcept {
         return numel_;
     }
-    [[nodiscard]] DataType common_dtype() const noexcept {
+    [[nodiscard]] EDataType common_dtype() const noexcept {
         return dtype_;
     }
-    [[nodiscard]] DeviceType device() const noexcept {
+    [[nodiscard]] EDeviceType device() const noexcept {
         return device_;
     }
     [[nodiscard]] std::size_t n_inputs() const noexcept {
@@ -101,13 +101,13 @@ class ArrayIterator {
   private:
     friend class ArrayIteratorConfig;
 
-    ArrayIterator(std::size_t numel, DataType dtype, DeviceType device, Array* output, std::vector<const Array*> inputs)
+    ArrayIterator(std::size_t numel, EDataType dtype, EDeviceType device, Array* output, std::vector<const Array*> inputs)
         : numel_(numel), dtype_(dtype), device_(device), output_(output), inputs_(std::move(inputs)) {
     }
 
     std::size_t               numel_ = 0;
-    DataType                  dtype_{};
-    DeviceType                device_{};
+    EDataType                  dtype_{};
+    EDeviceType                device_{};
     Array*                    output_ = nullptr;
     std::vector<const Array*> inputs_{};
 };

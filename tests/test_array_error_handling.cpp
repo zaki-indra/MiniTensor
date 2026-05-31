@@ -48,7 +48,7 @@ TEST(ArrayErrorHandlingTest, DeviceMismatchThrowsDeviceError) {
     mt::Array a = mt::ones({2, 2});
 
     // Device CUDA unsupported transfer throws DeviceError
-    EXPECT_THROW({ auto _ = a.to(mt::DeviceType::cuda); }, mt::DeviceError);
+    EXPECT_THROW({ auto _ = a.to(mt::EDeviceType::cuda); }, mt::DeviceError);
 }
 
 // ─────────────────────────────────────────────
@@ -87,18 +87,18 @@ TEST_P(ShapeBinaryTest, ThrowsShapeError) {
 // ─────────────────────────────────────────────
 TEST(ArrayErrorHandlingTest, TypeMismatchThrowsTypeErrorAndDTypeError) {
     // 4.1 Type mismatch between requested dynamic template accessor type and actual DataType (mt::TypeError)
-    mt::Array a = mt::ones({2, 2}, mt::DataType::i32);
+    mt::Array a = mt::ones({2, 2}, mt::EDataType::i32);
     EXPECT_THROW({ auto _ = a.data<float>(); }, mt::TypeError);
     EXPECT_THROW({ auto _ = a.at<float>({0, 0}); }, mt::TypeError);
 
-    mt::Array a_single = mt::full({1}, 5, mt::DataType::i32);
+    mt::Array a_single = mt::full({1}, 5, mt::EDataType::i32);
     EXPECT_THROW({ auto _ = a_single.item<float>(); }, mt::TypeError);
 }
 
 class DTypeBinaryTest : public ::testing::TestWithParam<BinOp> {};
 TEST_P(DTypeBinaryTest, ThrowsDTypeError) {
-    mt::Array b_float = mt::ones({2, 2}, mt::DataType::f32);
-    mt::Array b_int = mt::ones({2, 2}, mt::DataType::i32);
+    mt::Array b_float = mt::ones({2, 2}, mt::EDataType::f32);
+    mt::Array b_int = mt::ones({2, 2}, mt::EDataType::i32);
     EXPECT_THROW({ auto _ = GetParam()(b_float, b_int); }, mt::DTypeError);
 }
 

@@ -21,7 +21,7 @@ namespace
 // ---------------------------------------------------------
 void BM_Reshape(benchmark::State& state) {
     const std::size_t n = static_cast<std::size_t>(state.range(0));
-    mt::Array         a = mt::randn({n}, mt::DataType::f32);
+    mt::Array         a = mt::randn({n}, mt::EDataType::f32);
     for (auto _ : state) {
         mt::Array r = a.reshape({1, n});
         benchmark::DoNotOptimize(r.data<float>());
@@ -36,9 +36,9 @@ BENCHMARK(BM_Reshape)->Apply(mtbench::elementwise_sizes);
 // ---------------------------------------------------------
 void BM_Cast_f32_to_f64(benchmark::State& state) {
     const std::size_t n = static_cast<std::size_t>(state.range(0));
-    mt::Array         a = mt::randn({n}, mt::DataType::f32);
+    mt::Array         a = mt::randn({n}, mt::EDataType::f32);
     for (auto _ : state) {
-        mt::Array c = a.cast(mt::DataType::f64);
+        mt::Array c = a.cast(mt::EDataType::f64);
         benchmark::DoNotOptimize(c.data<double>());
     }
     // Reads n*4 bytes, writes n*8 — report on the source element size.
@@ -52,7 +52,7 @@ BENCHMARK(BM_Cast_f32_to_f64)->Apply(mtbench::elementwise_sizes);
 void BM_Zeros_f32(benchmark::State& state) {
     const std::size_t n = static_cast<std::size_t>(state.range(0));
     for (auto _ : state) {
-        mt::Array a = mt::zeros({n}, mt::DataType::f32);
+        mt::Array a = mt::zeros({n}, mt::EDataType::f32);
         benchmark::DoNotOptimize(a.data<float>());
     }
     mtbench::set_throughput(state, n, sizeof(float));
@@ -66,7 +66,7 @@ BENCHMARK(BM_Zeros_f32)->Apply(mtbench::elementwise_sizes);
 void BM_Randn_f32(benchmark::State& state) {
     const std::size_t n = static_cast<std::size_t>(state.range(0));
     for (auto _ : state) {
-        mt::Array a = mt::randn({n}, mt::DataType::f32);
+        mt::Array a = mt::randn({n}, mt::EDataType::f32);
         benchmark::DoNotOptimize(a.data<float>());
     }
     mtbench::set_throughput(state, n, sizeof(float));

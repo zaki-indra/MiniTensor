@@ -26,7 +26,7 @@ class AllocatorInterface {
 // reference is to a function-local static and is valid for the program
 // lifetime. Concrete implementations are translation-unit-local in
 // Storage.cpp.
-AllocatorInterface& default_allocator(DeviceType device);
+AllocatorInterface& default_allocator(EDeviceType device);
 
 // ---------------------------------------------------------
 // Storage
@@ -35,8 +35,8 @@ class Storage {
   private:
     void*       data_   = nullptr;
     std::size_t size_   = 0;
-    DataType    dtype_  = DataType::f32;
-    DeviceType  device_ = DeviceType::cpu;
+    EDataType    dtype_  = EDataType::f32;
+    EDeviceType  device_ = EDeviceType::cpu;
 
   public:
     Storage()                          = delete;
@@ -46,15 +46,15 @@ class Storage {
     Storage(Storage&& other) noexcept;
     Storage& operator=(Storage&& other) noexcept;
 
-    Storage(std::size_t numel, DataType dtype, DeviceType device);
+    Storage(std::size_t numel, EDataType dtype, EDeviceType device);
 
     ~Storage();
 
     [[nodiscard]] void*       data() noexcept;
     [[nodiscard]] const void* data() const noexcept;
     [[nodiscard]] std::size_t size() const noexcept;
-    [[nodiscard]] DataType    dtype() const noexcept;
-    [[nodiscard]] DeviceType  device() const noexcept;
+    [[nodiscard]] EDataType    dtype() const noexcept;
+    [[nodiscard]] EDeviceType  device() const noexcept;
 };
 
 } // namespace mt

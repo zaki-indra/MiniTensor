@@ -32,12 +32,12 @@ class CpuAllocator final : public AllocatorInterface {
 
 } // namespace
 
-AllocatorInterface& default_allocator(DeviceType device) {
+AllocatorInterface& default_allocator(EDeviceType device) {
     static CpuAllocator cpu;
     switch (device) {
-    case DeviceType::cpu:
+    case EDeviceType::cpu:
         return cpu;
-    case DeviceType::cuda:
+    case EDeviceType::cuda:
         throw mt::DeviceError("CUDA allocator is not available on this build.");
     }
     throw mt::DispatchError("Unknown device in default_allocator");
@@ -46,7 +46,7 @@ AllocatorInterface& default_allocator(DeviceType device) {
 // ---------------------------------------------------------
 // Storage
 // ---------------------------------------------------------
-Storage::Storage(std::size_t numel, DataType dtype, DeviceType device) : size_(numel), dtype_(dtype), device_(device) {
+Storage::Storage(std::size_t numel, EDataType dtype, EDeviceType device) : size_(numel), dtype_(dtype), device_(device) {
     std::size_t bytes = size_ * element_size(dtype_);
     data_             = default_allocator(device_).allocate(bytes, kCpuAlignment);
 }
@@ -86,10 +86,10 @@ const void* Storage::data() const noexcept {
 std::size_t Storage::size() const noexcept {
     return size_;
 }
-DataType Storage::dtype() const noexcept {
+EDataType Storage::dtype() const noexcept {
     return dtype_;
 }
-DeviceType Storage::device() const noexcept {
+EDeviceType Storage::device() const noexcept {
     return device_;
 }
 

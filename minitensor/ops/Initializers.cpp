@@ -18,7 +18,7 @@ namespace
 {
 
 template <class T>
-Array filled(const Shape& shape, T v, DataType dtype, DeviceType device) {
+Array filled(const Shape& shape, T v, EDataType dtype, EDeviceType device) {
     Array r(shape, dtype, device);
     MT_DISPATCH_ALL_TYPES(dtype, U, [&]() {
         U* p = r.data<U>();
@@ -32,19 +32,19 @@ Array filled(const Shape& shape, T v, DataType dtype, DeviceType device) {
 // ---------------------------------------------------------
 // Array static initializers
 // ---------------------------------------------------------
-Array Array::zeros(const Shape& s, DataType d, DeviceType dev) {
+Array Array::zeros(const Shape& s, EDataType d, EDeviceType dev) {
     return filled(s, 0, d, dev);
 }
-Array Array::ones(const Shape& s, DataType d, DeviceType dev) {
+Array Array::ones(const Shape& s, EDataType d, EDeviceType dev) {
     return filled(s, 1, d, dev);
 }
 
 template <class T>
-Array Array::full(const Shape& s, T v, DataType d, DeviceType dev) {
+Array Array::full(const Shape& s, T v, EDataType d, EDeviceType dev) {
     return filled(s, v, d, dev);
 }
 
-Array Array::randn(const Shape& shape, DataType dtype, DeviceType device) {
+Array Array::randn(const Shape& shape, EDataType dtype, EDeviceType device) {
     Array              r(shape, dtype, device);
     std::random_device rd;
     std::mt19937       gen(rd());
@@ -61,33 +61,33 @@ Array Array::randn(const Shape& shape, DataType dtype, DeviceType device) {
 // ---------------------------------------------------------
 // Free factory functions (delegate to Array statics)
 // ---------------------------------------------------------
-Array zeros(const Shape& shape, DataType dtype, DeviceType device) {
+Array zeros(const Shape& shape, EDataType dtype, EDeviceType device) {
     return Array::zeros(shape, dtype, device);
 }
-Array ones(const Shape& shape, DataType dtype, DeviceType device) {
+Array ones(const Shape& shape, EDataType dtype, EDeviceType device) {
     return Array::ones(shape, dtype, device);
 }
-Array randn(const Shape& shape, DataType dtype, DeviceType device) {
+Array randn(const Shape& shape, EDataType dtype, EDeviceType device) {
     return Array::randn(shape, dtype, device);
 }
 template <typename T>
-Array full(const Shape& shape, T fill_value, DataType dtype, DeviceType device) {
+Array full(const Shape& shape, T fill_value, EDataType dtype, EDeviceType device) {
     return Array::full(shape, fill_value, dtype, device);
 }
 
 // ---------------------------------------------------------
 // Explicit template instantiations
 // ---------------------------------------------------------
-template Array Array::full<float>(const Shape& shape, float fill_value, DataType dtype, DeviceType device);
-template Array Array::full<double>(const Shape& shape, double fill_value, DataType dtype, DeviceType device);
-template Array Array::full<int>(const Shape& shape, int fill_value, DataType dtype, DeviceType device);
-template Array Array::full<long>(const Shape& shape, long fill_value, DataType dtype, DeviceType device);
-template Array Array::full<long long>(const Shape& shape, long long fill_value, DataType dtype, DeviceType device);
+template Array Array::full<float>(const Shape& shape, float fill_value, EDataType dtype, EDeviceType device);
+template Array Array::full<double>(const Shape& shape, double fill_value, EDataType dtype, EDeviceType device);
+template Array Array::full<int>(const Shape& shape, int fill_value, EDataType dtype, EDeviceType device);
+template Array Array::full<long>(const Shape& shape, long fill_value, EDataType dtype, EDeviceType device);
+template Array Array::full<long long>(const Shape& shape, long long fill_value, EDataType dtype, EDeviceType device);
 
-template Array full<float>(const Shape& shape, float fill_value, DataType dtype, DeviceType device);
-template Array full<double>(const Shape& shape, double fill_value, DataType dtype, DeviceType device);
-template Array full<int>(const Shape& shape, int fill_value, DataType dtype, DeviceType device);
-template Array full<long>(const Shape& shape, long fill_value, DataType dtype, DeviceType device);
-template Array full<long long>(const Shape& shape, long long fill_value, DataType dtype, DeviceType device);
+template Array full<float>(const Shape& shape, float fill_value, EDataType dtype, EDeviceType device);
+template Array full<double>(const Shape& shape, double fill_value, EDataType dtype, EDeviceType device);
+template Array full<int>(const Shape& shape, int fill_value, EDataType dtype, EDeviceType device);
+template Array full<long>(const Shape& shape, long fill_value, EDataType dtype, EDeviceType device);
+template Array full<long long>(const Shape& shape, long long fill_value, EDataType dtype, EDeviceType device);
 
 } // namespace mt

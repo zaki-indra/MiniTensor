@@ -15,19 +15,19 @@
 #define MT_DISPATCH_ALL_TYPES(TYPE, TYPE_NAME, ...)                                                                    \
     [&]() {                                                                                                            \
         switch (TYPE) {                                                                                                \
-        case mt::DataType::f32: {                                                                                      \
+        case mt::EDataType::f32: {                                                                                      \
             using TYPE_NAME [[maybe_unused]] = float;                                                                  \
             return __VA_ARGS__();                                                                                      \
         }                                                                                                              \
-        case mt::DataType::f64: {                                                                                      \
+        case mt::EDataType::f64: {                                                                                      \
             using TYPE_NAME [[maybe_unused]] = double;                                                                 \
             return __VA_ARGS__();                                                                                      \
         }                                                                                                              \
-        case mt::DataType::i32: {                                                                                      \
+        case mt::EDataType::i32: {                                                                                      \
             using TYPE_NAME [[maybe_unused]] = int32_t;                                                                \
             return __VA_ARGS__();                                                                                      \
         }                                                                                                              \
-        case mt::DataType::i64: {                                                                                      \
+        case mt::EDataType::i64: {                                                                                      \
             using TYPE_NAME [[maybe_unused]] = int64_t;                                                                \
             return __VA_ARGS__();                                                                                      \
         }                                                                                                              \
@@ -55,11 +55,11 @@
 #define MT_DISPATCH(DEVICE, DEVICE_TAG, TYPE, TYPE_NAME, ...)                                                          \
     [&]() {                                                                                                            \
         switch (DEVICE) {                                                                                              \
-        case mt::DeviceType::cpu: {                                                                                    \
+        case mt::EDeviceType::cpu: {                                                                                    \
             using DEVICE_TAG [[maybe_unused]] = mt::CpuDevice;                                                         \
             return MT_DISPATCH_ALL_TYPES(TYPE, TYPE_NAME, __VA_ARGS__);                                                \
         }                                                                                                              \
-        case mt::DeviceType::cuda: {                                                                                   \
+        case mt::EDeviceType::cuda: {                                                                                   \
             using DEVICE_TAG [[maybe_unused]] = mt::CudaDevice;                                                        \
             return MT_DISPATCH_ALL_TYPES(TYPE, TYPE_NAME, __VA_ARGS__);                                                \
         }                                                                                                              \
